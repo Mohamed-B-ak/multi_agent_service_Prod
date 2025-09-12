@@ -31,11 +31,9 @@ def get_llm():
 
 # Request body model for the user input prompt
 class UserPromptRequest(BaseModel):
-    """
-    Pydantic model for the user input prompt.
-    """
     prompt: str
-
+    user_email: str = None  # Optional field
+    context: list = []      # Optional field with default empty list
 # Crew agent workers
 def get_workers():
     """
