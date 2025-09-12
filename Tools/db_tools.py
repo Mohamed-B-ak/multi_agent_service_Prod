@@ -2,12 +2,12 @@ from pymongo import MongoClient
 from crewai.tools import BaseTool
 from crewai import Agent, LLM
 from typing import Any, Optional
-
+import os
 # Base connection class (not inheriting from BaseTool)
 class MongoDBConnection:
     def __init__(self, connection_string: str, db_name: str):
-        self.client = MongoClient(connection_string)
-        self.db = self.client[db_name]
+        self.client = MongoClient(os.getenv("MONGO_DB_URI"))
+        self.db = self.client[os.getenv("DB_NAME")]
 
     def get_db(self):
         return self.db

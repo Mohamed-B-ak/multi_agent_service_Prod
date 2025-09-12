@@ -24,7 +24,7 @@ def get_llm():
     """
     return LLM(
         model="gpt-4o",
-        api_key=os.getenv("LLM_API_KEY"),
+        api_key=os.getenv("OPENAI_API_KEY"),
         temperature=0.3,
 
     )
