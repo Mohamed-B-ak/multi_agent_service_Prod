@@ -17,5 +17,6 @@ def manager_agent(llm_obj) -> Agent:
         allow_delegation=True,  # CHANGED: Enable delegation
         llm=llm_obj,
         verbose=True,
+        max_retry_limit=1,
         # DO NOT add tools here - manager should only delegate
     )   
