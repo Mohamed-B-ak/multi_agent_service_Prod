@@ -4,3 +4,4 @@ crewai
 requests
 pymongo
 nest_asyncio
+crewai[tools]
