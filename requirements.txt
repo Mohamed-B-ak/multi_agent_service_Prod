@@ -3,3 +3,4 @@ uvicorn
 crewai
 requests
 pymongo
+nest_asyncio

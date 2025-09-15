@@ -1,7 +1,7 @@
 from crewai import Agent
 from Tools.email_tools import MailerSendTool
 
-def email_agent(llm_obj, user_language="en") -> Agent:
+def email_agent(llm_obj, user_email, user_language="en") -> Agent:
     """
     Email agent that sends emails using the MailerSend tool,
     respecting the user's language and strict concision.
@@ -32,7 +32,7 @@ def email_agent(llm_obj, user_language="en") -> Agent:
         role="Email Sender",
         goal=goal_text,
         backstory=backstory_text,
-        tools=[MailerSendTool()],
+        tools=[MailerSendTool(user_email=user_email)],
         allow_delegation=False,
         llm=llm_obj,
         verbose=True,

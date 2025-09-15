@@ -1,36 +1,59 @@
 # tools.py
+import asyncio
+import nest_asyncio
 import os
-import requests
-from typing import Optional
 from crewai.tools import BaseTool
+from pymongo import MongoClient
+from whatsapp_client_python.whatsapp_client import WhatsAppClient
 
-# -------- WhatsApp ----------
+nest_asyncio.apply()
+
 class WhatsAppTool(BaseTool):
     name: str = "WhatsApp Tool"
     description: str = (
         "Use for sending WhatsApp messages. Args: to_number(str), message(str). "
-        "Sends messages via WhatsApp API."
+        "Fetches WhatsApp credentials dynamically from MongoDB based on user_email."
     )
+
+    # ✅ declare user_email as a Pydantic field (like MailerSendTool)
+    user_email: str
 
     async def _run(self, to_number: str, message: str) -> str:
         try:
-            from whatsapp_client_python.whatsapp_client import WhatsAppClient
-            
-            # Initialize WhatsAppClient with session name and API key
+            # Connect to MongoDB
+            client = MongoClient(os.getenv("MONGO_DB_URI"))
+            db = client[os.getenv("DB_NAME")]
+            collection = db["usercredentials"]
+
+            # Find WhatsApp credentials for this user
+            user_doc = collection.find_one({"userEmail": self.user_email})
+            if not user_doc:
+                return f"❌ No credentials found for {self.user_email}"
+
+            whatsapp_doc = user_doc.get("whatsapp", {})
+            session_name = whatsapp_doc.get("sessionName")
+            api_key = whatsapp_doc.get("apiKey")
+
+            if not session_name or not api_key:
+                return f"❌ WhatsApp credentials are missing for {self.user_email}"
+
+        except Exception as e:
+            return f"❌ Error fetching WhatsApp credentials: {str(e)}"
+
+        try:
+            # ✅ Initialize WhatsApp client with dynamic credentials
             client = WhatsAppClient(
-                session_name="8a41e673426e514ef82f705_tertertert",
-                api_key="comp_mei6o0co_b5ebef99b36e2885b338a33ec3ba41f4"
+                session_name=session_name,
+                api_key=api_key
             )
 
-            # Use async context manager to handle the client session and send the message
-            async with client as whatsapp_client:
-                # Send the message to the given phone number
-                success = await whatsapp_client.send_message(phone=to_number, message=message)
+            async with client:
+                success = await client.send_message(to_number, message)
 
-                # Log and return response
-                if success:
-                    return f"✅ WhatsApp message successfully sent to {to_number}: {message[:80]}"
-                else:
-                    return f"❌ Failed to send WhatsApp message to {to_number}: {message[:80]}"
+            if success:
+                return f"✅ WhatsApp message successfully sent to {to_number}: {message[:80]}"
+            else:
+                return f"❌ Failed to send WhatsApp message to {to_number}: {message[:80]}"
+
         except Exception as e:
             return f"❌ WhatsApp error: {str(e)}"

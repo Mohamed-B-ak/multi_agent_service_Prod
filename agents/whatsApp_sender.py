@@ -1,7 +1,7 @@
 from crewai import Agent
 from Tools.whatsApp_tools import WhatsAppTool
 
-def whatsapp_agent(llm_obj, user_language="en") -> Agent:
+def whatsapp_agent(llm_obj, user_email, user_language="en") -> Agent:
     """
     WhatsApp agent that sends messages using WhatsAppTool,
     respecting the user's language and strict concision.
@@ -32,7 +32,7 @@ def whatsapp_agent(llm_obj, user_language="en") -> Agent:
         role="WhatsApp Sender",
         goal=goal_text,
         backstory=backstory_text,
-        tools=[WhatsAppTool()],
+        tools=[WhatsAppTool(user_email=user_email)],
         allow_delegation=False,
         llm=llm_obj,
         verbose=True,
