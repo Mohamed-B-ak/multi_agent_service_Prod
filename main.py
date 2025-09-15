@@ -156,10 +156,11 @@ async def process_prompt(request: UserPromptRequest):
     """
     user_prompt = request.prompt
     context_window = request.context
+    user_email = request.user_email
     # Initialize LLM and Manager
     llm_obj = get_llm()
     mgr = manager_agent(llm_obj)  # manager
-    user_email = "mohamed.ak@d10.sa"
+    #user_email = "mohamed.ak@d10.sa"
     # Detect user language
     try:
         user_language = detect(user_prompt)
