@@ -1,12 +1,12 @@
 # tools.py
-import asyncio
-import nest_asyncio
+#import asyncio
+#import nest_asyncio
 import os
 from crewai.tools import BaseTool
 from pymongo import MongoClient
 from whatsapp_client_python.whatsapp_client import WhatsAppClient
 
-nest_asyncio.apply()
+#nest_asyncio.apply()
 
 class WhatsAppTool(BaseTool):
     name: str = "WhatsApp Tool"
