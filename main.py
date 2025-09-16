@@ -23,6 +23,7 @@ import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 FOLDER_PATH = os.path.join(os.getcwd(), "files")  # ./files directory
+os.makedirs(FOLDER_PATH, exist_ok=True)
 
 # FastAPI app instance
 app = FastAPI()
