@@ -6,3 +6,5 @@ pymongo
 nest_asyncio
 crewai[tools]
 langdetect
+fpdf
+python-docx
