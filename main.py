@@ -19,6 +19,7 @@ from agents.web_analyser_agent import web_analyser_agent
 from agents.knowledge_enhanced_content_agent import knowledge_enhancer_agent
 from agents.file_creation_agent import file_creation_agent
 from langdetect import detect
+from fastapi.responses import JSONResponse
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
