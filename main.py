@@ -45,7 +45,7 @@ def get_llm():
 # Request body model for the user input prompt
 class UserPromptRequest(BaseModel):
     prompt: str
-    user_email: str = "mohamed.ak@d10.sa"  # Optional field
+    user_email: str   # Optional field
     context: list = []      # Optional field with default empty list
 # Crew agent workers
 def get_workers(user_email, user_language, knowledge_base):
@@ -164,7 +164,7 @@ async def process_prompt(request: UserPromptRequest):
     """
     user_prompt = request.prompt
     context_window = request.context
-    user_email = "mohamed.ak@d10.sa"
+    user_email = request.user_email
     # Initialize LLM and Manager
     llm_obj = get_llm()
     mgr = manager_agent(llm_obj)
