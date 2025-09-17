@@ -1,6 +1,6 @@
 fastapi
 uvicorn
-crewai
+crewai==0.186.0
 requests
 pymongo
 nest_asyncio
@@ -8,3 +8,4 @@ crewai[tools]
 langdetect
 fpdf
 python-docx
+hubspot-api-client

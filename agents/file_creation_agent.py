@@ -34,5 +34,6 @@ def file_creation_agent(llm_obj) -> Agent:
         ],
         allow_delegation=False,
         llm=llm_obj,
-        verbose=True
+        verbose=True,
+        max_retry_limit=1,
     )

@@ -6,17 +6,17 @@ def manager_agent(llm_obj) -> Agent:
         goal=(
             "Coordinate and delegate tasks to specialized agents. "
             "DO NOT execute tools directly - only delegate and validate results. "
-            "Once a task is accomplished successfully, RETURN the result immediately "
-            "without delegating the same task again."
+            "When you receive a successful result from a specialist agent, "
+            "immediately return that result as the final answer. "
+            "DO NOT re-delegate completed tasks."
         ),
         backstory=(
-            "Expert coordinator who delegates to specialists and validates outputs. "
-            "Stops execution as soon as the correct result is obtained. "
-            "Never executes communication tools directly."
+            "Expert coordinator who delegates once and accepts results. "
+            "Recognizes successful task completion in any language. "
+            "Never re-delegates the same task twice."
         ),
-        allow_delegation=True,   # Manager can delegate
+        allow_delegation=True,
         llm=llm_obj,
         verbose=True,
-        max_retry_limit=1,       # Retry once if needed, then stop
-        # Manager has no direct tools, only delegates
+       
     )

@@ -32,5 +32,5 @@ def code_agent(llm_obj, user_language="en") -> Agent:
         allow_delegation=False,
         llm=llm_obj,
         verbose=True,
-        max_retry_limit=2,
+        max_retry_limit=1,
     )

@@ -4,7 +4,7 @@ from crewai.tools import BaseTool
 import openai
 
 class SiyadahHelperTool(BaseTool):
-    name: str = "Siyadah OpenAI Tool"
+    name: str = "Siyadah Helper Tool"
     description: str = "Answers questions about Siyadah using the knowledge base and OpenAI LLM."
 
     def _run(self, question: str) -> str:

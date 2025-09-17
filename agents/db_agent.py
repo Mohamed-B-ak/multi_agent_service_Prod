@@ -80,5 +80,4 @@ def db_agent(llm_obj, user_email, user_language="en") -> Agent:
         allow_delegation=False,
         llm=llm_obj,
         verbose=True,
-        max_retry_limit=1,
     )
