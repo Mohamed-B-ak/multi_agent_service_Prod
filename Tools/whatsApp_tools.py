@@ -18,10 +18,20 @@ class WhatsAppTool(BaseTool):
 
     # --- required by BaseTool (sync) ---
     def _run(self, to_number: str, message: str) -> str:
-        """Fallback sync version: wraps the async one"""
-        return asyncio.get_event_loop().run_until_complete(
-            self._arun(to_number, message)
-        )
+        """Fallback sync version: submits to running loop if present"""
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # submit task to running loop
+                future = asyncio.run_coroutine_threadsafe(
+                    self._arun(to_number, message), loop
+                )
+                return future.result()
+            else:
+                # no loop running → safe to block
+                return loop.run_until_complete(self._arun(to_number, message))
+        except Exception as e:
+            return f"❌ WhatsApp error (sync fallback): {str(e)}"
 
     # --- async version (CrewAI will prefer this if supported) ---
     async def _arun(self, to_number: str, message: str) -> str:
