@@ -20,7 +20,6 @@ from agents.web_analyser_agent import web_analyser_agent
 from agents.knowledge_enhanced_content_agent import knowledge_enhancer_agent
 from agents.file_creation_agent import file_creation_agent
 from agents.crm_agent import crm_agent
-from langdetect import detect
 from fastapi.responses import JSONResponse
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -47,7 +46,7 @@ from typing import Optional
 # Request body model for the user input prompt
 class UserPromptRequest(BaseModel):
     prompt: str
-    user_email: Optional[str] = None   # Optional field
+    user_email: str   # Optional field
     context: list = []      # Optional field with default empty list
 # Crew agent workers
 def get_workers(user_email, user_language, knowledge_base):
@@ -178,8 +177,7 @@ async def process_prompt(request: UserPromptRequest):
     """
     user_prompt = request.prompt
     context_window = request.context
-    #user_email = request.user_email
-    user_email = "mohamed.ak@d10.sa"
+    user_email = request.user_email
     # Initialize LLM and Manager
     llm_obj = get_llm()
     mgr = manager_agent(llm_obj)
