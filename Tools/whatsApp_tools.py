@@ -4,7 +4,6 @@ import os
 from crewai.tools import BaseTool
 from pymongo import MongoClient
 from whatsapp_client_python.whatsapp_client import WhatsAppClient
-import platform
 
 
 class WhatsAppTool(BaseTool):
@@ -17,14 +16,15 @@ class WhatsAppTool(BaseTool):
     # ✅ declare user_email as a Pydantic field (like MailerSendTool)
     user_email: str
 
-    async def _run(self, to_number: str, message: str) -> str:
+    async def _arun(self, to_number: str, message: str) -> str:
+        """Async execution entrypoint for CrewAI tools"""
+
+        # --- Step 1: Fetch WhatsApp credentials ---
         try:
-            # Connect to MongoDB
             client = MongoClient(os.getenv("MONGO_DB_URI"))
             db = client[os.getenv("DB_NAME")]
             collection = db["usercredentials"]
 
-            # Find WhatsApp credentials for this user
             user_doc = collection.find_one({"userEmail": self.user_email})
             if not user_doc:
                 return f"❌ No credentials found for {self.user_email}"
@@ -39,14 +39,9 @@ class WhatsAppTool(BaseTool):
         except Exception as e:
             return f"❌ Error fetching WhatsApp credentials: {str(e)}"
 
+        # --- Step 2: Send message via WhatsApp client ---
         try:
-            # ✅ Initialize WhatsApp client with dynamic credentials
-            client = WhatsAppClient(
-                session_name=session_name,
-                api_key=api_key
-            )
-
-            async with client:
+            async with WhatsAppClient(session_name=session_name, api_key=api_key) as client:
                 success = await client.send_message(to_number, message)
 
             if success:
