@@ -11,7 +11,7 @@ import time
 from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass
 from datetime import datetime
-
+import requests
 
 @dataclass
 class MessageInfo:
@@ -122,19 +122,14 @@ class WhatsAppClient:
             print(f"❌ Connection check error: {e}")
             return False
 
-    async def send_message(self, phone: str, message: str) -> bool:
+    
+
+    def send_message(self, phone: str, message: str) -> bool:
         """
-        Send a WhatsApp message
-
-        Args:
-            phone: Phone number (e.g., "21653844063")
-            message: Message text to send
-
-        Returns:
-            True if message sent successfully, False otherwise
+        Send a WhatsApp message (synchronous version).
         """
         if not self.authenticated:
-            if not await self._authenticate():
+            if not self._authenticate():  # also needs to be rewritten sync
                 return False
 
         try:
@@ -145,45 +140,24 @@ class WhatsAppClient:
 
             payload = {"phone": phone, "message": message}
 
-            async with self.session.post(
-                    f"{self.server_url}/api/{self.session_name}/send-message",
-                    json=payload,
-                    headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=30)) as response:
-                success = response.status in [200, 201]
-                if success:
-                    print(f"✅ Message sent successfully to {phone}")
-                else:
-                    print(f"❌ Message send failed: {response.status}")
-                return success
+            resp = requests.post(
+                f"{self.server_url}/api/{self.session_name}/send-message",
+                json=payload,
+                headers=headers,
+                timeout=30
+            )
+
+            if resp.status_code in [200, 201]:
+                print(f"✅ Message sent successfully to {phone}")
+                return True
+            else:
+                print(f"❌ Message send failed: {resp.status_code}")
+                return False
 
         except Exception as e:
             print(f"❌ Send error: {e}")
-            # Try re-authentication once on failure
-            if await self._authenticate():
-                try:
-                    headers = {
-                        "Content-Type": "application/json",
-                        "Authorization": f"Bearer {self.auth_token}"
-                    }
-                    payload = {"phone": phone, "message": message}
-
-                    async with self.session.post(
-                            f"{self.server_url}/api/{self.session_name}/send-message",
-                            json=payload,
-                            headers=headers,
-                            timeout=aiohttp.ClientTimeout(
-                                total=30)) as response:
-                        success = response.status in [200, 201]
-                        if success:
-                            print(
-                                f"✅ Message sent successfully after re-auth to {phone}"
-                            )
-                        return success
-                except Exception as retry_error:
-                    print(f"❌ Retry send error: {retry_error}")
-                    return False
             return False
+
 
     async def send_bulk_messages(self,
                                  recipients: List[Dict[str, str]],

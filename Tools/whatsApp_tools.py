@@ -1,11 +1,19 @@
 # tools.py
-
 import os
 import asyncio
+import platform
+from concurrent.futures import ThreadPoolExecutor
 from crewai.tools import BaseTool
 from pymongo import MongoClient
 from whatsapp_client_python.whatsapp_client import WhatsAppClient
 
+# ✅ Apply nest_asyncio only on Windows (local dev)
+if platform.system() == "Windows":
+    import nest_asyncio
+    nest_asyncio.apply()
+
+# Shared thread executor for running async in sync contexts
+_EXECUTOR = ThreadPoolExecutor(max_workers=1)
 
 class WhatsAppTool(BaseTool):
     name: str = "WhatsApp Tool"
@@ -14,26 +22,19 @@ class WhatsAppTool(BaseTool):
         "Fetches WhatsApp credentials dynamically from MongoDB based on user_email."
     )
 
+    # ✅ declare user_email as a Pydantic field
     user_email: str
 
-    # --- required by BaseTool (sync) ---
+    # --- SYNC entrypoint (CrewAI may call this) ---
     def _run(self, to_number: str, message: str) -> str:
-        """Fallback sync version: submits to running loop if present"""
+        """Sync fallback: runs async code in a background thread"""
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # submit task to running loop
-                future = asyncio.run_coroutine_threadsafe(
-                    self._arun(to_number, message), loop
-                )
-                return future.result()
-            else:
-                # no loop running → safe to block
-                return loop.run_until_complete(self._arun(to_number, message))
+            future = _EXECUTOR.submit(lambda: asyncio.run(self._arun(to_number, message)))
+            return future.result()
         except Exception as e:
-            return f"❌ WhatsApp error (sync fallback): {str(e)}"
+            return f"❌ WhatsApp error (sync): {str(e)}"
 
-    # --- async version (CrewAI will prefer this if supported) ---
+    # --- ASYNC entrypoint (preferred when supported) ---
     async def _arun(self, to_number: str, message: str) -> str:
         # Step 1: Fetch WhatsApp credentials
         try:
