@@ -9,3 +9,4 @@ langdetect
 fpdf
 python-docx
 hubspot-api-client
+langid
