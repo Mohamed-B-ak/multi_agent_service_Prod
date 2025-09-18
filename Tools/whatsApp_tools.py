@@ -6,8 +6,6 @@ from pymongo import MongoClient
 from whatsapp_client_python.whatsapp_client import WhatsAppClient
 import platform
 
-import nest_asyncio
-nest_asyncio.apply()
 
 class WhatsAppTool(BaseTool):
     name: str = "WhatsApp Tool"
