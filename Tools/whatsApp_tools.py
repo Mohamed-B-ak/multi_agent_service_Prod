@@ -2,6 +2,7 @@
 import os
 import asyncio
 import platform
+import inspect
 from concurrent.futures import ThreadPoolExecutor
 from crewai.tools import BaseTool
 from pymongo import MongoClient
@@ -59,7 +60,13 @@ class WhatsAppTool(BaseTool):
         # Step 2: Send WhatsApp message
         try:
             async with WhatsAppClient(session_name=session_name, api_key=api_key) as client:
-                success = await client.send_message(to_number, message)
+                result = client.send_message(to_number, message)
+
+                # ✅ Handle both coroutine and bool return types
+                if inspect.isawaitable(result):
+                    success = await result
+                else:
+                    success = result
 
             if success:
                 return f"✅ WhatsApp message successfully sent to {to_number}: {message[:80]}"
