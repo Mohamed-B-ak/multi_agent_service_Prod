@@ -9,11 +9,11 @@ from pymongo import MongoClient
 from crewai import Crew, Process, Task, LLM
 from agents.caller_agent import caller_agent
 from agents.code_agent import code_agent
-from agents.content_agent import content_agent
-from agents.db_agent import db_agent
+from agents.content_agent import strategic_content_agent
+from agents.db_agent import intelligent_database_agent
 from agents.email_sender_agent import email_agent
-from agents.manager_agent import manager_agent
-from agents.understanding_agent import understanding_agent
+from agents.manager_agent import intelligent_manager_agent
+from agents.understanding_agent import enhanced_understanding_agent
 from agents.whatsApp_sender import whatsapp_agent
 from agents.siyadah_helper_agent import siyadah_helper_agent
 from agents.web_analyser_agent import web_analyser_agent
@@ -54,143 +54,135 @@ class UserPromptRequest(BaseModel):
     context: list = []      # Optional field with default empty list
 
 # 🧠 دالة الوكلاء المحدثة مع الوكلاء الجدد
+
 def get_workers(user_email, user_language, knowledge_base):
     """
-    إضافة الوكلاء الجدد للفريق الموجود
+    🧠 Fixed worker agents with intelligent database operations
     """
     llm_obj = get_llm()
     return [
-        # 🧠 وكلاء التحليل الجدد - الإضافة الجديدة
+        # 🧠 CORE INTELLIGENCE AGENTS
+        enhanced_understanding_agent(llm_obj, user_language),
         intent_analysis_agent(llm_obj, user_language),
         strategic_planning_agent(llm_obj, user_language),
         
-        # 🔄 الوكلاء الموجودين (بدون تغيير)
-        understanding_agent(llm_obj),
-        content_agent(llm_obj, user_language),
+        # 🗂️ FIXED DATABASE AGENT (HIGHEST PRIORITY)
+        intelligent_database_agent(llm_obj, user_email, user_language),  # ✅ FIXED AGENT
+        
+        # 🎭 ENHANCED CONTENT CREATION
+        strategic_content_agent(llm_obj, user_language),
+        knowledge_enhancer_agent(llm_obj, knowledge_base, user_language),
+        
+        # 📡 COMMUNICATION CHANNELS
         email_agent(llm_obj, user_email, user_language),
         whatsapp_agent(llm_obj, user_email, user_language),
         caller_agent(llm_obj, user_language),
-        code_agent(llm_obj, user_language), 
-        db_agent(llm_obj, user_email, user_language),
-        siyadah_helper_agent(llm_obj, user_language),
-        knowledge_enhancer_agent(llm_obj, knowledge_base, user_language),
-        file_creation_agent(llm_obj),
+        
+        # 🏢 BUSINESS OPERATIONS
         crm_agent(llm_obj, user_email, user_language),
+        file_creation_agent(llm_obj),
+        
+        # 🤖 SPECIALIZED SERVICES
+        code_agent(llm_obj, user_language), 
+        web_analyser_agent(llm_obj, user_language),
+        siyadah_helper_agent(llm_obj, user_language),
     ]
-
 # Task for understanding and executing the user's request
 from crewai import Task
 
 def get_understand_and_execute_task():
     """
-    تعريف وإرجاع المهمة لفهم وتنفيذ موجهات المستخدم، مع استخدام السياق داخليًا فقط إن كان ذا صلة.
-    النظام يدعم قنوات متعددة: البريد الإلكتروني، الواتساب، المكالمات،
-    قواعد البيانات، تحليل المواقع، إنشاء الملفات، CRM Agent (للاستعلام فقط)،
-    ووكيل المعرفة Siyadah.
+    🧠 FIXED INTELLIGENT TASK - Now with proper database operations priority
     """
-
     return Task(
         description=(
-            "🧠 ENHANCED SYSTEM WITH ADVANCED ANALYSIS - Now with intelligent analysis agents!\n"
-            "You now have access to powerful analysis agents that provide deep insights:\n\n"
+            "🧠 INTELLIGENT BUSINESS OPERATIONS SYSTEM - ENHANCED WITH PROPER DATABASE HANDLING\n"
+            "Transform user requests into the correct actions - NO MORE CONFUSION!\n\n"
             
-            "🎯 NEW ANALYSIS CAPABILITIES:\n"
-            "1. 🧠 INTENT ANALYSIS AGENT: Deep understanding of user requests, emotions, and hidden meanings\n"
-            "2. 💭 CONTEXT MEMORY AGENT: Remembers past conversations and user patterns\n"
-            "3. 📊 STRATEGIC PLANNING AGENT: Creates optimal execution plans\n\n"
+            "🚨 CRITICAL INTENT RECOGNITION (MANDATORY):\n\n"
             
-            "💡 HOW TO USE THE NEW AGENTS:\n"
-            "- For complex requests: First consult Intent Analysis Agent for deep understanding\n"
-            "- For personalized responses: Use Context Memory Agent to recall user preferences\n"
-            "- For optimal execution: Let Strategic Planning Agent create the best approach\n\n"
+            "📊 DATABASE OPERATIONS (HIGHEST PRIORITY):\n"
+            "🔍 If user says 'أضيف عميل جديد' or 'add new client':\n"
+            "   → Route to: Intelligent Database Operations Specialist\n"
+            "   → Action: ADD client to database (NOT send emails!)\n"
+            "   → Required: Name, Phone, Email, Company (optional)\n"
+            "   → Response: Database confirmation in user language\n\n"
             
-            "أنت تدير نظام ذكاء اصطناعي للتواصل والبرمجة قادر على:\n"
-            "1. 📧 **محتوى البريد الإلكتروني**: صياغة بريد إلكتروني احترافي باستخدام أخصائي المحتوى + وكيل تعزيز المحتوى.\n"
-            "2. 📤 **إرسال البريد الإلكتروني**: يتم فقط بطلب صريح وبعد تمرير المحتوى لوكيل تعزيز المحتوى.\n"
-            "3. 📱 **محتوى واتساب**: صياغة رسائل باستخدام أخصائي المحتوى + وكيل تعزيز المحتوى.\n"
-            "4. 📲 **إرسال واتساب**: يتم فقط بطلب صريح مع تمرير المحتوى عبر وكيل تعزيز المحتوى.\n"
-            "5. ☎️ **نصوص المكالمات**: سكربت مبدئي من أخصائي المحتوى + تحسين عبر وكيل تعزيز المحتوى.\n"
-            "6. ☎️ **إجراء مكالمة**: بعد التأكيد فقط.\n"
-            "7. 🗂️ **عمليات قاعدة البيانات (MongoDB)**: تنفيذ CRUD (إضافة، تعديل، حذف، استعلام) مقيدة ببريد المستخدم {user_email}.\n"
-            "8. 📄 **إنشاء ملفات PDF أو Word أو Excel**: باستخدام File Creator Agent وحفظ الناتج في مجلد 'files/'.\n"
-            "9. 🏢 **إدارة CRM (HubSpot, Salesforce, Zoho, ...)**: يقتصر دورها فقط على *استخراج أو عرض بيانات العملاء* عند تصريح المستخدم.\n"
-            "10. 🤖 **أسئلة واستفسارات Siyadah**: تمريرها إلى وكيل المساعد الذكي Siyadah Intelligent Agent.\n\n"
-
-            "🧠 سياسة استخدام السياق (داخليًا فقط):\n"
-            "- يمكن استخدام {context_window} لفهم الموجه واستكمال النواقص عند الحاجة، دون عرض تلخيص أو إحالات للسياق.\n"
-            "- طلب المستخدم الصريح له الأولوية إذا تعارض مع السياق.\n\n"
-
-            "📝 وضع الإيجاز الصارم (Strict Concision):\n"
-            "- أجب على قدر السؤال فقط دون إضافات.\n"
-            "- نعم/لا تُجاب باختصار.\n\n"
-
-            "طلب المستخدم: {user_prompt}\n\n"
-
-            "📌 التوجيه الذكي المطور - الإجباري:\n"
-            "🎯 لجميع الطلبات: استشر Intent Analysis Agent أولاً (إجباري)\n"
-            "📊 لجميع الطلبات: اطلب من Strategic Planning Agent وضع خطة تنفيذ\n"
-            "📧 نية = 'صياغة بريد إلكتروني' → أخصائي المحتوى + وكيل تعزيز المحتوى\n"
-            "📧 نية = 'إرسال بريد إلكتروني' → أخصائي المحتوى + وكيل تعزيز المحتوى + أخصائي البريد الإلكتروني\n"
-            "📱 نية = 'صياغة واتساب' → أخصائي المحتوى + وكيل تعزيز المحتوى\n"
-            "📱 نية = 'إرسال واتساب' → أخصائي المحتوى + وكيل تعزيز المحتوى + أخصائي واتساب\n"
-            "☎️ نية = 'صياغة مكالمة' → أخصائي المحتوى + وكيل تعزيز المحتوى\n"
-            "☎️ نية = 'إجراء مكالمة' → أخصائي المحتوى + وكيل تعزيز المحتوى + أخصائي المكالمات\n"
-            "🗂️ نية = 'عمليات قاعدة بيانات' (إضافة/تعديل/حذف/استعلام) → أخصائي قاعدة البيانات\n"
-            "📝 نية = 'إنشاء ملف PDF أو Word أو Excel' → File Creator Agent\n"
-            "🏢 نية = 'CRM' → استدعاء CRM Agent فقط لاستخراج/عرض بيانات العملاء عند تصريح المستخدم.\n"
-            "❓ نية = 'استفسار' أو 'مساعدة' → Siyadah Intelligent Agent\n"
-            "🔄 نوايا متعددة → التنسيق بين الوكلاء\n"
-            "❓ نية غير واضحة أو بيانات ناقصة → استيضاح ذكي بسؤال مباشر قبل التنفيذ.\n\n"
-
-            "📜 بروتوكول التنفيذ المحدث - الإجباري:\n"
-            "1. الكشف عن لغة المستخدم.\n"
-            "2. 🧠 استشارة Intent Analysis Agent للفهم العميق (إجباري لجميع الطلبات)\n"
-            "4. 📊 استشارة Strategic Planning Agent للتخطيط (إجباري)\n"
-            "5. الرد بنفس لغة المستخدم.\n"
-            "6. في *الصياغة*: يولّد المحتوى ثم يُحسّن.\n"
-            "7. في *الإرسال*: صياغة + تعزيز ثم تمرير لوكيل القناة.\n"
-            "8. في *قاعدة البيانات*: جميع عمليات الإضافة والتعديل والحذف تُنفذ على DB الداخلية فقط.\n"
-            "9. في *الملفات*: إنشاء الملف عبر File Creator Agent وحفظه في مجلد 'files/'.\n"
-            "10. في *إدارة CRM*: يسمح فقط بالاستعلام/الاستخراج عند تصريح المستخدم.\n"
-            "11. في استفسارات Siyadah: تمريرها إلى الوكيل المعرفي.\n"
-            "12. الأسئلة المباشرة: إجابة مقتضبة.\n"
-            "13. في حالة النية الغامضة أو نقص البيانات: طرح سؤال استيضاح قبل أي تنفيذ.\n"
-            "14. التأكيد فقط في حالة الأوامر التنفيذية.\n"
-            "15. التعامل مع الأخطاء بلغة مهذبة ومختصرة.\n\n"
-
-            "🚨 إجراءات السلامة:\n"
-            "- لا يتم الإرسال أو التنفيذ إلا بطلب واضح وصريح.\n"
-            "- جميع عمليات CRUD تتم على قاعدة البيانات الداخلية فقط.\n"
-            "- CRM يُستخدم حصريًا لعرض/استخراج بيانات العملاء.\n"
-            "- لا يُنفذ أي إجراء في حالة النية الغامضة أو نقص البيانات إلا بعد استيضاح المستخدم.\n"
-            "- التحقق من البريد وجهة الإرسال.\n"
-            "- المهنية واجبة في كل الردود.\n"
-            "- تحقق دائم من أن عمليات قاعدة البيانات مقيدة بالبريد الإلكتروني للمستخدم.\n"
+            "🔍 If user says 'اعرض العملاء' or 'list clients':\n"
+            "   → Route to: Intelligent Database Operations Specialist\n"
+            "   → Action: QUERY database for clients\n"
+            "   → Response: Client list in user language\n\n"
+            
+            "🔍 If user says 'كم عميل عندي' or 'count clients':\n"
+            "   → Route to: Intelligent Database Operations Specialist\n"
+            "   → Action: COUNT clients in database\n"
+            "   → Response: Number in user language\n\n"
+            
+            "📧 EMAIL OPERATIONS (Only for actual email sending):\n"
+            "🔍 If user says 'ارسل إيميل' or 'send email':\n"
+            "   → Route to: Email workflow (Content → Enhancement → Send)\n\n"
+            
+            "📱 WHATSAPP OPERATIONS (Only for messaging):\n"
+            "🔍 If user says 'ارسل واتساب' or 'send whatsapp':\n"
+            "   → Route to: WhatsApp workflow\n\n"
+            
+            "❓ HELP/QUESTIONS:\n"
+            "🔍 If user asks questions about platform:\n"
+            "   → Route to: Siyadah Helper Agent\n\n"
+            
+            "⚠️ MANDATORY RULES:\n"
+            "- Database operations = Database Agent ONLY\n"
+            "- Email operations = Email workflow ONLY\n"
+            "- NO mixing database operations with email sending\n"
+            "- NO creating marketing content for database operations\n"
+            "- ALWAYS respond in user language: {user_language}\n"
+            "- User email for scoping: {user_email}\n\n"
+            
+            "🔍 INPUT ANALYSIS:\n"
+            "User Request: {user_prompt}\n"
+            "User Language: {user_language} (maintain throughout)\n"
+            "Business Context: {context_window}\n"
+            "User Email: {user_email}\n\n"
+            
+            "🎯 EXPECTED BEHAVIOR FOR 'أضيف عميل جديد':\n"
+            "1. Recognize this as DATABASE OPERATION\n"
+            "2. Route to Database Agent ONLY\n"
+            "3. Ask for client details if missing\n"
+            "4. Add client to 'clients' collection\n"
+            "5. Confirm addition in Arabic\n"
+            "6. DO NOT send any emails\n"
+            "7. DO NOT create marketing content"
         ),
         expected_output=(
-            "مخرجات مقتضبة حسب النية مع الاستفادة من الوكلاء الجدد:\n"
-            "✅ نعم/لا: إجابة قصيرة.\n"
-            "✅ الصياغة: النص فقط مع تحسينات من التحليل العميق.\n"
-            "✅ الإرسال: تأكيد مختصر مع النص عند الحاجة.\n"
-            "✅ قاعدة البيانات: نتيجة CRUD مرتبطة ببريد المستخدم مع نص تأكيد.\n"
-            "✅ ملفات PDF/Word/Excel: رسالة تأكيد مع مسار الملف في مجلد 'files/'.\n"
-            "✅ إدارة CRM: عرض أو استخراج بيانات العملاء فقط عند تصريح المستخدم.\n"
-            "✅ استفسارات Siyadah: رد دقيق من القاعدة المعرفية.\n"
-            "✅ استيضاح: سؤال مباشر لتحديد النية أو تزويد البيانات الناقصة.\n"
-            "⚠️ لا ملخصات أو تعليقات إضافية إلا بطلب المستخدم.\n"
-            "🔣 لغة الرد = لغة المستخدم.\n\n"
-            "**معايير النجاح للمهام الرقمية:**\n"
-            "- وجود رقم واضح عند التنفيذ\n"
-            "- نص تأكيد بلغة المستخدم\n"
-            "- عند تحقق هذا التنسيق، تعتبر المهمة مكتملة\n\n"
-            "🧠 **الميزات الجديدة المتاحة:**\n"
-            "- فهم أعمق للطلبات المعقدة\n"
-            "- ذاكرة مستمرة للمحادثات السابقة\n"
-            "- تخطيط استراتيجي للتنفيذ الأمثل\n"
-            "- شخصنة محسنة بناءً على السياق"
+            "🎯 CORRECT BEHAVIOR EXAMPLES:\n\n"
+            
+            "✅ For 'أضيف عميل جديد':\n"
+            "→ 'لإضافة عميل جديد، أحتاج المعلومات التالية:\n"
+            "   - اسم العميل\n"
+            "   - رقم الهاتف\n"
+            "   - البريد الإلكتروني\n"
+            "   - اسم الشركة (اختياري)\n"
+            "   يرجى تقديم هذه المعلومات لإتمام الإضافة.'\n\n"
+            
+            "✅ For 'اعرض العملاء':\n"
+            "→ Display actual client list from database\n\n"
+            
+            "✅ For 'كم عميل عندي':\n"
+            "→ 'عدد العملاء: [actual_number]'\n\n"
+            
+            "❌ WRONG BEHAVIOR (OLD SYSTEM):\n"
+            "→ Creating marketing emails for database operations\n"
+            "→ Sending emails to user when they want to add clients\n"
+            "→ Complex strategic planning for simple database operations\n\n"
+            
+            "🎯 SUCCESS CRITERIA:\n"
+            "- Correct agent routing based on intent\n"
+            "- Actual database operations performed\n"
+            "- Clear, direct responses in {user_language}\n"
+            "- No confusion between operations\n"
+            "- User gets exactly what they asked for"
         ),
     )
-
 # 🧪 مهمة اختبار الوكلاء الجدد
 def create_analysis_test_task():
     """
@@ -274,7 +266,7 @@ async def process_prompt(request: UserPromptRequest):
     
     # Initialize LLM and Manager
     llm_obj = get_llm()
-    mgr = manager_agent(llm_obj)
+    mgr = intelligent_manager_agent(llm_obj)
 
     # Detect language
     try:
@@ -312,7 +304,8 @@ async def process_prompt(request: UserPromptRequest):
         final = crew.kickoff(inputs={
             "user_prompt": user_prompt,
             "context_window": context_window,
-            "user_email": user_email
+            "user_email": user_email,
+            "user_language": user_language
         })
 
         if hasattr(final, "raw"):
@@ -396,7 +389,7 @@ async def test_analysis_agents(request: UserPromptRequest):
     test_task = create_analysis_test_task()
     
     # مدير للتنسيق
-    test_manager = manager_agent(llm_obj)
+    test_manager = intelligent_manager_agent(llm_obj)
     
     # فريق الاختبار
     test_crew = Crew(
