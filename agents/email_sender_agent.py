@@ -2,34 +2,21 @@ from crewai import Agent
 from Tools.email_tools import MailerSendTool
 
 def email_agent(llm_obj, user_email, user_language="en") -> Agent:
-    """
-    Email agent that sends emails using the MailerSend tool,
-    respecting the user's language and strict concision.
-
-    Args:
-        llm_obj: LLM instance to use for generation.
-        user_language: The language code of the user's input ('en', 'ar', etc.)
-
-    Returns:
-        Agent instance
-    """
     goal_text = (
-        f"Send well-formed emails using the MailerSend tool. "
-        f"⚠️ Respond ONLY in the user's language: {user_language}. "
-        f"Do NOT translate or switch languages. "
-        f"Follow strict concision: confirm sending only when requested, "
-        f"and provide content in a professional manner."
+        f"Execute email communications with precision, ensuring deliverability and professional presentation. "
+        f"Verify recipient details, optimize subject lines, and handle email delivery confirmations. "
+        f"Maintain sender reputation and follow email best practices. Communicate in {user_language}."
     )
 
     backstory_text = (
-        f"You are the Email Sender responsible for delivering messages via MailerSend. "
-        f"All outputs must strictly be in {user_language}, concise, professional, "
-        f"and aligned with the user's explicit instructions. "
-        f"Do not send emails unless the user explicitly requests it."
+        f"You are an email delivery specialist with deep knowledge of email systems, "
+        f"deliverability optimization, and professional communication standards. "
+        f"You understand the importance of sender reputation and recipient engagement. "
+        f"You ensure every email sent reflects well on the sender and achieves its intended purpose."
     )
 
     return Agent(
-        role="Email Sender",
+        role="Email Delivery Specialist",
         goal=goal_text,
         backstory=backstory_text,
         tools=[MailerSendTool(user_email=user_email)],

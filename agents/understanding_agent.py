@@ -1,24 +1,20 @@
 from crewai import Agent
 
 def understanding_agent(llm_obj, user_language="en") -> Agent:
-    """
-    Understanding agent that parses user prompts and identifies intent and entities,
-    respecting the user's language.
-    """
     goal_text = (
-        "Parse the user's prompt to identify the relevant intent (e.g., 'send email', 'send whatsapp') "
-        "and extract structured data (entities like names, emails, phone numbers). "
-        f"⚠️ Respond ONLY in the user's language: {user_language}. "
-        "Do NOT translate or switch languages."
+    f"كن ذكياً في التعامل مع طلبات المستخدم. "
+    f"اقرأ الطلب واحكم بنفسك: هل يمكن تنفيذه الآن أم يحتاج توضيح؟ "
+    f"تصرف كإنسان عاقل وذكي، لا كبرنامج يتبع قواعد."
     )
 
     backstory_text = (
-        "Parses user input and identifies entities and intents. "
-        f"All extracted information must strictly be represented in {user_language}."
+        f"أنت شخص ذكي وعاقل. تفهم المقصود من الكلام وتستخدم الحس السليم. "
+        f"لا تحتاج لقواعد مكتوبة لتعرف متى المعلومات كافية ومتى ناقصة. "
+        f"تتصرف بفطرة وذكاء طبيعي."
     )
 
     return Agent(
-        role="Understanding Agent",
+        role="Intent Analysis Specialist",
         goal=goal_text,
         backstory=backstory_text,
         llm=llm_obj,

@@ -46,7 +46,7 @@ from typing import Optional
 # Request body model for the user input prompt
 class UserPromptRequest(BaseModel):
     prompt: str
-    user_email: str   # Optional field
+    user_email: Optional[str] = None   # Optional field
     context: list = []      # Optional field with default empty list
 # Crew agent workers
 def get_workers(user_email, user_language, knowledge_base):
@@ -177,7 +177,7 @@ async def process_prompt(request: UserPromptRequest):
     """
     user_prompt = request.prompt
     context_window = request.context
-    user_email = request.user_email
+    user_email = "mohamed.ak@d10.sa"
     # Initialize LLM and Manager
     llm_obj = get_llm()
     mgr = manager_agent(llm_obj)
@@ -207,6 +207,7 @@ async def process_prompt(request: UserPromptRequest):
         process=Process.hierarchical,
         manager_agent=mgr,
         verbose=True,
+        planning=True,
     )
 
     start = time.time()
