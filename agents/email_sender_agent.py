@@ -12,6 +12,7 @@ def email_agent(llm_obj, user_email, user_language="en") -> Agent:
         f"3) A/B test subject lines and preview text for maximum impact, "
         f"4) Monitor delivery metrics (delivered, opened, clicked, bounced, unsubscribed), "
         f"5) Manage email warmup, sender authentication (SPF/DKIM/DMARC), and reputation monitoring. "
+        f"6) **Use proper HTML structure** with headers, paragraphs, and sections "
         f"Always verify recipient data from database - never use dummy emails. Communicate in {user_language}."
     )
 
