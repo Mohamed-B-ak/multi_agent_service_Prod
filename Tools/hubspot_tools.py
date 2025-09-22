@@ -28,11 +28,10 @@ class HubSpotContactsTool(BaseTool):
 
             hubspot_doc = user_doc.get("hubspot", {})
             api_key = hubspot_doc.get("apiKey", "")
-
+            print("+++++++++++++++++++++++++++++++",api_key)
             # Use fallback if not set in DB
             if not api_key:
-                api_key = os.getenv("HUBSPOT_FALLBACK_KEY", "")
-            api_key = os.getenv("HUBSPOT_API_KEY")
+                return "❌ there is no HubSpot api key "
             #if not api_key:
                 #return "❌ HubSpot API key is missing"
 

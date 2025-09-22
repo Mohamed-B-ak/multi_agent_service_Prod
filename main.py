@@ -60,7 +60,6 @@ def get_workers(user_email, user_language, knowledge_base):
         email_agent(llm_obj, user_email, user_language),
         whatsapp_agent(llm_obj, user_email, user_language),
         caller_agent(llm_obj, user_language),
-        code_agent(llm_obj, user_language), 
         db_agent(llm_obj, user_email, user_language),
         siyadah_helper_agent(llm_obj, user_language),
         knowledge_enhancer_agent(llm_obj, knowledge_base, user_language),
@@ -82,11 +81,11 @@ def get_understand_and_execute_task():
 
     return Task(
         description=(
-            "You manage an AI communication and programming system capable of:\n"
+            "You manage an AI communication system capable of:\n"
             "1. 📧 **Email Content**: Draft professional emails using Content Specialist + Content Enhancement Agent.\n"
-            "2. 📤 **Send Email**: Only with explicit request and after passing content to Content Enhancement Agent.\n"
+            "2. 📤 **Send Email**: Only with explicit request and after passing content to Content Enhancement Agent (make sure that the content don' contain placeholders).\n"
             "3. 📱 **WhatsApp Content**: Draft messages using Content Specialist + Content Enhancement Agent.\n"
-            "4. 📲 **Send WhatsApp**: Only with explicit request while passing content through Content Enhancement Agent.\n"
+            "4. 📲 **Send WhatsApp**: Only with explicit request while passing content through Content Enhancement Agent (make sure that the content don' contain placeholders).\n"
             "5. ☎️ **Call Scripts**: Initial script from Content Specialist + improvement via Content Enhancement Agent.\n"
             "6. ☎️ **Make Call**: Only after confirmation.\n"
             "7. 🗂️ **Database Operations (MongoDB)**: Execute CRUD (add, update, delete, query) restricted by user email {user_email}.\n"
@@ -95,7 +94,7 @@ def get_understand_and_execute_task():
             "10. 🤖 **Siyadah Questions and Inquiries**: Pass them to Siyadah Intelligent Agent.\n\n"
 
             "🧠 Context Usage Policy (internal only):\n"
-            "- {context_window} can be used to understand the prompt and complete missing information when needed, without displaying summaries or context references.\n"
+            "- {context_window} can be used to understand the prompt , get some informations (whatsApp or email content or contacts(phone number or mail address) ) and complete missing information when needed, without displaying summaries or context references.\n"
             "- Explicit user request has priority if it conflicts with context.\n\n"
 
             "📝 Strict Concision Mode:\n"
@@ -106,14 +105,14 @@ def get_understand_and_execute_task():
 
             "📌 Smart Routing:\n"
             "📧 intent = 'draft email' → Content Specialist + Content Enhancement Agent\n"
-            "📧 intent = 'send email' → Content Specialist + Content Enhancement Agent + Email Specialist\n"
+            "📧 intent = 'send email' → (Content Specialist + Content Enhancement Agent if no content already generated in the context window ) + Email Specialist\n"
             "📱 intent = 'draft whatsapp' → Content Specialist + Content Enhancement Agent\n"
-            "📱 intent = 'send whatsapp' → Content Specialist + Content Enhancement Agent + WhatsApp Specialist\n"
+            "📱 intent = 'send whatsapp' → (Content Specialist + Content Enhancement Agent if no content already generated in the context window ) + WhatsApp Specialist\n"
             "☎️ intent = 'draft call' → Content Specialist + Content Enhancement Agent\n"
             "☎️ intent = 'make call' → Content Specialist + Content Enhancement Agent + Call Specialist\n"
             "🗂️ intent = 'database operations' (add/update/delete/query) → Database Specialist\n"
             "📝 intent = 'create PDF, Word or Excel file' → File Creator Agent\n"
-            "🏢 intent = 'CRM' → Invoke CRM Agent only to extract/display customer data upon user authorization.\n"
+            "🏢 intent = 'CRM' → Invoke CRM Agent only to extract/display customer data upon user authorization (Only with explicit request).\n"
             "❓ intent = 'inquiry' or 'help' → Siyadah Intelligent Agent\n"
             "🔄 multiple intents → Coordinate between agents\n"
             "❓ unclear intent or missing data → Smart clarification with direct question before execution.\n\n"
@@ -166,7 +165,7 @@ def get_understand_and_execute_task():
 
 def detect_language(text: str) -> str:
     langid.set_languages(['fr', 'en', 'ar'])
-    lang, prob = langid.classify(text)
+    lang, _ = langid.classify(text)
     print(lang)
     return lang  
 
