@@ -36,5 +36,4 @@ def manager_agent(llm_obj, user_language="en") -> Agent:
         allow_delegation=True,
         llm=llm_obj,
         verbose=True,
-        max_iter= 1 ,
     )
