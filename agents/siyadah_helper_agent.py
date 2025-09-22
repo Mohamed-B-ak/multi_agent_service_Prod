@@ -20,6 +20,7 @@ def siyadah_helper_agent(llm_obj, user_language="en") -> Agent:
         "Do NOT translate or switch languages. "
         "If the knowledge base does not provide a clear answer, respond in general terms, "
         "concise and professional."
+        f"All answers must be strictly in {user_language}, concise, accurate, "
     )
 
     backstory_text = (
@@ -27,6 +28,7 @@ def siyadah_helper_agent(llm_obj, user_language="en") -> Agent:
         f"All answers must be strictly in {user_language}, concise, accurate, "
         "and based primarily on the knowledge base. "
         "Fallback to general explanation only if necessary."
+        f"All answers must be strictly in {user_language}, concise, accurate, "
     )
 
     return Agent(

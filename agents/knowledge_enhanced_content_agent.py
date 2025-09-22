@@ -21,6 +21,7 @@ def knowledge_enhancer_agent(llm_obj, knowledge_base_text: str, user_language="e
         f"Ground every refinement in the following company knowledge base:\n\n"
         f"{knowledge_base_text}\n\n"
         f"Always output only the improved content, without extra explanations."
+        f"All answers must be strictly in {user_language}, concise, accurate, "
     )
 
     backstory_text = (
@@ -31,6 +32,7 @@ def knowledge_enhancer_agent(llm_obj, knowledge_base_text: str, user_language="e
         f"with the company’s tone of voice and guidelines. "
         f"You must strictly respond in {user_language} and avoid adding system notes, "
         f"meta text, or process commentary. Only return the refined final content."
+        f"All answers must be strictly in {user_language}, concise, accurate, "
     )
 
     return Agent(

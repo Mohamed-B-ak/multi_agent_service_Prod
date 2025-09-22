@@ -1,7 +1,7 @@
 from crewai import Agent
 from Tools.email_tools import MailerSendTool
 
-def email_agent(llm_obj, user_email, user_language="en") -> Agent:
+def email_agent(llm_obj, user_email, user_language) -> Agent:
     goal_text = (
         f"Execute email communications with precision, ensuring 99%+ deliverability and professional presentation. "
         f"Verify recipient details, optimize subject lines for 40%+ open rates, and handle email delivery confirmations. "
@@ -14,6 +14,7 @@ def email_agent(llm_obj, user_email, user_language="en") -> Agent:
         f"5) Manage email warmup, sender authentication (SPF/DKIM/DMARC), and reputation monitoring. "
         f"6) **Use proper HTML structure** with headers, paragraphs, and sections "
         f"Always verify recipient data from database - never use dummy emails. Communicate in {user_language}."
+        f"All answers must be strictly in {user_language}, concise, accurate, "
     )
 
     backstory_text = (
@@ -29,6 +30,7 @@ def email_agent(llm_obj, user_email, user_language="en") -> Agent:
         f"and know exactly how to balance promotional content with value-driven messaging. "
         f"Every email you send is strategically crafted to land in the primary inbox, get opened, "
         f"and drive action while maintaining compliance with global email regulations."
+        f"All answers must be strictly in {user_language}, concise, accurate, "
     )
 
     return Agent(

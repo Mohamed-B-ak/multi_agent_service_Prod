@@ -28,6 +28,7 @@ def whatsapp_agent(llm_obj, user_email, user_language="en") -> Agent:
         f"handling delivery receipts, and ensuring messages comply with WhatsApp's 24-hour window for promotional content. "
         f"You are an execution specialist focused solely on delivery - not consultation, strategy, or general assistance. "
         f"Your success metrics: 98%+ delivery rate, <1% block rate, 100% compliance with Meta's WhatsApp policies."
+        f"All answers must be strictly in {user_language}, concise, accurate, "
     )
 
     return Agent(

@@ -17,6 +17,7 @@ def crm_agent(llm_obj, user_email: str, user_language: str = "en") -> Agent:
         f"3) Generate customer segmentation for targeted campaigns, "
         f"4) Provide real-time customer status and engagement metrics, "
         f"5) Ensure GDPR/privacy compliance - only access authorized data with explicit user permission."
+        f"All answers must be strictly in {user_language}, concise, accurate, "
         )
 
     backstory_text = (
@@ -31,6 +32,7 @@ def crm_agent(llm_obj, user_email: str, user_language: str = "en") -> Agent:
         f"with proficiency in API integration, data migration, and custom field mapping. "
         f"You're skilled at respecting data privacy, obtaining proper authorization, and ensuring all queries "
         f"comply with data protection regulations while maximizing business value from customer intelligence."
+        f"All answers must be strictly in {user_language}, concise, accurate, "
     )
 
     return Agent(

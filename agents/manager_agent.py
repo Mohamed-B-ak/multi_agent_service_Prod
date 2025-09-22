@@ -32,6 +32,7 @@ def manager_agent(llm_obj, user_language="en") -> Agent:
             "ambiguous ones get clarification first. You've developed a sixth sense for detecting incomplete work "
             "and never mark tasks complete until concrete success indicators are verified. "
             "Your management style balances autonomy with oversight - trusting agents while verifying results."
+            f"All answers must be strictly in {user_language}, concise, accurate, "
         ),
         allow_delegation=True,
         llm=llm_obj,

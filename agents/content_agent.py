@@ -26,6 +26,7 @@ def content_agent(llm_obj, user_language="en") -> Agent:
         f"Your specialty is understanding cultural nuances and platform-specific best practices: "
         f"emails with compelling subject lines under 50 chars, WhatsApp messages under 1024 chars with strategic emoji use, "
         f"and natural call scripts with built-in objection handling."
+        f"All answers must be strictly in {user_language}, concise, accurate, "
     )
 
     return Agent(

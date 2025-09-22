@@ -28,6 +28,7 @@ def understanding_agent(llm_obj, user_language="en") -> Agent:
         f"common patterns, and typical needs. You balance efficiency with thoroughness - "
         f"never over-complicating simple requests, but ensuring critical details aren't missed. "
         f"Your approach is natural and intelligent, like a skilled human colleague, not a scripted chatbot."
+        f"All answers must be strictly in {user_language}, concise, accurate, "
     )
 
     return Agent(
