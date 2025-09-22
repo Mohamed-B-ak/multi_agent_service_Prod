@@ -24,13 +24,13 @@ from fastapi.responses import JSONResponse
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-FOLDER_PATH = os.path.join(os.getcwd(), "files")  # ./files directory
+FOLDER_PATH = os.path.join(os.getcwd(), "files")  
 os.makedirs(FOLDER_PATH, exist_ok=True)
 
-# FastAPI app instance
+
 app = FastAPI()
 
-# LLM initialization function
+
 def get_llm():
     """
     Initialize the LLM (Large Language Model) with a predefined model and API key.
@@ -193,7 +193,7 @@ async def process_prompt(request: UserPromptRequest):
         client = MongoClient(os.getenv("MONGO_DB_URI"))
         db = client[os.getenv("DB_NAME")]
         collection = db["knowledgebases"]
-        user_doc = collection.find_one({"createdByEmail": user_email})
+        user_doc = collection.find_one({"userId": user_email})
         knowledge_base = user_doc['extractedContent']
     except:
         knowledge_base = ""
@@ -206,7 +206,7 @@ async def process_prompt(request: UserPromptRequest):
         tasks=[understand_and_execute],
         process=Process.hierarchical,
         manager_agent=mgr,
-        verbose=False,
+        verbose=True,
     )
 
     start = time.time()
@@ -227,49 +227,42 @@ async def process_prompt(request: UserPromptRequest):
 
         execution_time = time.time() - start
         print(execution_time)
-        # -----------------------
-        # Check ./files for one file
-        # -----------------------
+
         file_data = None
         file_name = None
 
         if os.path.exists(FOLDER_PATH):
             files = os.listdir(FOLDER_PATH)
-            if files:  # only one file expected
+            if files:  
                 file_path = os.path.join(FOLDER_PATH, files[0])
                 file_name = files[0]
 
-                # Encode file content as base64
+
                 with open(file_path, "rb") as f:
                     file_data = base64.b64encode(f.read()).decode("utf-8")
 
-                # Delete the file
                 try:
                     os.remove(file_path)
                 except Exception as e:
                     print(f"Could not delete {file_path}: {e}")
 
-        # -----------------------
-        # Return JSON response
-        # -----------------------
+
         return JSONResponse(content={
             "final_output": final_output,
             "execution_time": execution_time,
             "file_name": file_name,
-            "file_content": file_data  # base64 encoded file (None if no file)
+            "file_content": file_data 
         })
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error occurred: {str(e)}")
 
 
-# Endpoint to serve the HTML interface
 @app.get("/")
 async def get_chat_interface():
     """
     Serve the HTML interface for the chat.
     """
-    # Make sure the HTML file exists in the same directory as this file.
     html_file_path = os.path.join(os.path.dirname(__file__), "index.html")
     
     # Check if the file exists
