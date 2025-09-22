@@ -42,11 +42,11 @@ def get_llm():
         max_tokens=500,
 
     )
-#from typing import Optional
+from typing import Optional
 
 class UserPromptRequest(BaseModel):
     prompt: str
-    user_email: str                                 #Optional[str] = None   
+    user_email: Optional[str] = None   
     context: list = []   
 
 def get_workers(user_email, user_language, knowledge_base):
@@ -180,7 +180,7 @@ async def process_prompt(request: UserPromptRequest):
     """
     user_prompt = request.prompt
     context_window = request.context
-    user_email = request.user_email
+    user_email = "mohamed.ak@d10.sa"
     llm_obj = get_llm()
     
     try:
