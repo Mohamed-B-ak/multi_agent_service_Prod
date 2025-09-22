@@ -38,24 +38,24 @@ def get_llm():
     return LLM(
         model="gpt-4o",
         api_key=os.getenv("OPENAI_API_KEY"),
-        temperature=0.3,
+        temperature=0.1,
+        max_tokens=500,
 
     )
-from typing import Optional
+#from typing import Optional
 
-# Request body model for the user input prompt
 class UserPromptRequest(BaseModel):
     prompt: str
-    user_email: Optional[str] = None   # Optional field
-    context: list = []      # Optional field with default empty list
-# Crew agent workers
+    user_email: str                                 #Optional[str] = None   
+    context: list = []   
+
 def get_workers(user_email, user_language, knowledge_base):
     """
     Initialize and return all worker agents.
     """
     llm_obj = get_llm()
     return [
-        understanding_agent(llm_obj),
+        understanding_agent(llm_obj, user_language),
         content_agent(llm_obj, user_language),
         email_agent(llm_obj, user_email, user_language),
         whatsapp_agent(llm_obj, user_email, user_language),
@@ -68,95 +68,98 @@ def get_workers(user_email, user_language, knowledge_base):
         crm_agent(llm_obj, user_email, user_language),
     ]
 
-# Task for understanding and executing the user's request
+
 from crewai import Task
 
 def get_understand_and_execute_task():
     """
-    تعريف وإرجاع المهمة لفهم وتنفيذ موجهات المستخدم، مع استخدام السياق داخليًا فقط إن كان ذا صلة.
-    النظام يدعم قنوات متعددة: البريد الإلكتروني، الواتساب، المكالمات،
-    قواعد البيانات، تحليل المواقع، إنشاء الملفات، CRM Agent (للاستعلام فقط)،
-    ووكيل المعرفة Siyadah.
+    Define and return the task for understanding and executing user prompts, 
+    using context internally only when relevant.
+    The system supports multiple channels: Email, WhatsApp, Calls,
+    Databases, Website Analysis, File Creation, CRM Agent (query only),
+    and Siyadah Knowledge Agent.
     """
 
     return Task(
         description=(
-            "أنت تدير نظام ذكاء اصطناعي للتواصل والبرمجة قادر على:\n"
-            "1. 📧 **محتوى البريد الإلكتروني**: صياغة بريد إلكتروني احترافي باستخدام أخصائي المحتوى + وكيل تعزيز المحتوى.\n"
-            "2. 📤 **إرسال البريد الإلكتروني**: يتم فقط بطلب صريح وبعد تمرير المحتوى لوكيل تعزيز المحتوى.\n"
-            "3. 📱 **محتوى واتساب**: صياغة رسائل باستخدام أخصائي المحتوى + وكيل تعزيز المحتوى.\n"
-            "4. 📲 **إرسال واتساب**: يتم فقط بطلب صريح مع تمرير المحتوى عبر وكيل تعزيز المحتوى.\n"
-            "5. ☎️ **نصوص المكالمات**: سكربت مبدئي من أخصائي المحتوى + تحسين عبر وكيل تعزيز المحتوى.\n"
-            "6. ☎️ **إجراء مكالمة**: بعد التأكيد فقط.\n"
-            "7. 🗂️ **عمليات قاعدة البيانات (MongoDB)**: تنفيذ CRUD (إضافة، تعديل، حذف، استعلام) مقيدة ببريد المستخدم {user_email}.\n"
-            "8. 📄 **إنشاء ملفات PDF أو Word أو Excel**: باستخدام File Creator Agent وحفظ الناتج في مجلد 'files/'.\n"
-            "9. 🏢 **إدارة CRM (HubSpot, Salesforce, Zoho, ...)**: يقتصر دورها فقط على *استخراج أو عرض بيانات العملاء* عند تصريح المستخدم.\n"
-            "10. 🤖 **أسئلة واستفسارات Siyadah**: تمريرها إلى وكيل المساعد الذكي Siyadah Intelligent Agent.\n\n"
+            "You manage an AI communication and programming system capable of:\n"
+            "1. 📧 **Email Content**: Draft professional emails using Content Specialist + Content Enhancement Agent.\n"
+            "2. 📤 **Send Email**: Only with explicit request and after passing content to Content Enhancement Agent.\n"
+            "3. 📱 **WhatsApp Content**: Draft messages using Content Specialist + Content Enhancement Agent.\n"
+            "4. 📲 **Send WhatsApp**: Only with explicit request while passing content through Content Enhancement Agent.\n"
+            "5. ☎️ **Call Scripts**: Initial script from Content Specialist + improvement via Content Enhancement Agent.\n"
+            "6. ☎️ **Make Call**: Only after confirmation.\n"
+            "7. 🗂️ **Database Operations (MongoDB)**: Execute CRUD (add, update, delete, query) restricted by user email {user_email}.\n"
+            "8. 📄 **Create PDF, Word or Excel Files**: Using File Creator Agent and saving output in 'files/' folder.\n"
+            "9. 🏢 **CRM Management (HubSpot, Salesforce, Zoho, ...)**: Role limited only to *extracting or displaying customer data* upon user authorization.\n"
+            "10. 🤖 **Siyadah Questions and Inquiries**: Pass them to Siyadah Intelligent Agent.\n\n"
 
-            "🧠 سياسة استخدام السياق (داخليًا فقط):\n"
-            "- يمكن استخدام {context_window} لفهم الموجه واستكمال النواقص عند الحاجة، دون عرض تلخيص أو إحالات للسياق.\n"
-            "- طلب المستخدم الصريح له الأولوية إذا تعارض مع السياق.\n\n"
+            "🧠 Context Usage Policy (internal only):\n"
+            "- {context_window} can be used to understand the prompt and complete missing information when needed, without displaying summaries or context references.\n"
+            "- Explicit user request has priority if it conflicts with context.\n\n"
 
-            "📝 وضع الإيجاز الصارم (Strict Concision):\n"
-            "- أجب على قدر السؤال فقط دون إضافات.\n"
-            "- نعم/لا تُجاب باختصار.\n\n"
+            "📝 Strict Concision Mode:\n"
+            "- Answer only what's asked without additions.\n"
+            "- Yes/No answered briefly.\n\n"
 
-            "طلب المستخدم: {user_prompt}\n\n"
+            "User Request: {user_prompt}\n\n"
 
-            "📌 التوجيه الذكي:\n"
-            "📧 نية = 'صياغة بريد إلكتروني' → أخصائي المحتوى + وكيل تعزيز المحتوى\n"
-            "📧 نية = 'إرسال بريد إلكتروني' → أخصائي المحتوى + وكيل تعزيز المحتوى + أخصائي البريد الإلكتروني\n"
-            "📱 نية = 'صياغة واتساب' → أخصائي المحتوى + وكيل تعزيز المحتوى\n"
-            "📱 نية = 'إرسال واتساب' → أخصائي المحتوى + وكيل تعزيز المحتوى + أخصائي واتساب\n"
-            "☎️ نية = 'صياغة مكالمة' → أخصائي المحتوى + وكيل تعزيز المحتوى\n"
-            "☎️ نية = 'إجراء مكالمة' → أخصائي المحتوى + وكيل تعزيز المحتوى + أخصائي المكالمات\n"
-            "🗂️ نية = 'عمليات قاعدة بيانات' (إضافة/تعديل/حذف/استعلام) → أخصائي قاعدة البيانات\n"
-            "📝 نية = 'إنشاء ملف PDF أو Word أو Excel' → File Creator Agent\n"
-            "🏢 نية = 'CRM' → استدعاء CRM Agent فقط لاستخراج/عرض بيانات العملاء عند تصريح المستخدم.\n"
-            "❓ نية = 'استفسار' أو 'مساعدة' → Siyadah Intelligent Agent\n"
-            "🔄 نوايا متعددة → التنسيق بين الوكلاء\n"
-            "❓ نية غير واضحة أو بيانات ناقصة → استيضاح ذكي بسؤال مباشر قبل التنفيذ.\n\n"
+            "📌 Smart Routing:\n"
+            "📧 intent = 'draft email' → Content Specialist + Content Enhancement Agent\n"
+            "📧 intent = 'send email' → Content Specialist + Content Enhancement Agent + Email Specialist\n"
+            "📱 intent = 'draft whatsapp' → Content Specialist + Content Enhancement Agent\n"
+            "📱 intent = 'send whatsapp' → Content Specialist + Content Enhancement Agent + WhatsApp Specialist\n"
+            "☎️ intent = 'draft call' → Content Specialist + Content Enhancement Agent\n"
+            "☎️ intent = 'make call' → Content Specialist + Content Enhancement Agent + Call Specialist\n"
+            "🗂️ intent = 'database operations' (add/update/delete/query) → Database Specialist\n"
+            "📝 intent = 'create PDF, Word or Excel file' → File Creator Agent\n"
+            "🏢 intent = 'CRM' → Invoke CRM Agent only to extract/display customer data upon user authorization.\n"
+            "❓ intent = 'inquiry' or 'help' → Siyadah Intelligent Agent\n"
+            "🔄 multiple intents → Coordinate between agents\n"
+            "❓ unclear intent or missing data → Smart clarification with direct question before execution.\n\n"
 
-            "📜 بروتوكول التنفيذ:\n"
-            "1. الكشف عن لغة المستخدم.\n"
-            "2. تحليل النية باستخدام وكيل الفهم.\n"
-            "3. الرد بنفس لغة المستخدم.\n"
-            "4. في *الصياغة*: يولّد المحتوى ثم يُحسّن.\n"
-            "5. في *الإرسال*: صياغة + تعزيز ثم تمرير لوكيل القناة.\n"
-            "6. في *قاعدة البيانات*: جميع عمليات الإضافة والتعديل والحذف تُنفذ على DB الداخلية فقط.\n"
-            "7. في *الملفات*: إنشاء الملف عبر File Creator Agent وحفظه في مجلد 'files/'.\n"
-            "8. في *إدارة CRM*: يسمح فقط بالاستعلام/الاستخراج عند تصريح المستخدم.\n"
-            "9. في استفسارات Siyadah: تمريرها إلى الوكيل المعرفي.\n"
-            "10. الأسئلة المباشرة: إجابة مقتضبة.\n"
-            "11. في حالة النية الغامضة أو نقص البيانات: طرح سؤال استيضاح قبل أي تنفيذ.\n"
-            "12. التأكيد فقط في حالة الأوامر التنفيذية.\n"
-            "13. التعامل مع الأخطاء بلغة مهذبة ومختصرة.\n\n"
+            "📜 Execution Protocol:\n"
+            "1. Detect user language.\n"
+            "2. Analyze intent using Understanding Agent.\n"
+            "3. Respond in same user language.\n"
+            "4. In *drafting*: Generate content then enhance.\n"
+            "5. In *sending*: Verify message type, channel, and recipients → Extract real client data from DB if needed → Draft + enhance then pass to channel agent.\n"
+            "6. In *database*: All add, update, and delete operations execute on internal DB only.\n"
+            "7. In *files*: Create file via File Creator Agent and save in 'files/' folder.\n"
+            "8. In *CRM management*: Only allow query/extraction upon user authorization.\n"
+            "9. In Siyadah inquiries: Pass to Knowledge Agent.\n"
+            "10. Direct questions: Concise answer.\n"
+            "11. In case of ambiguous intent or missing data: Ask clarification question before any execution.\n"
+            "12. Confirmation only for executive commands.\n"
+            "13. Handle errors with polite and brief language.\n\n"
 
-            "🚨 إجراءات السلامة:\n"
-            "- لا يتم الإرسال أو التنفيذ إلا بطلب واضح وصريح.\n"
-            "- جميع عمليات CRUD تتم على قاعدة البيانات الداخلية فقط.\n"
-            "- CRM يُستخدم حصريًا لعرض/استخراج بيانات العملاء.\n"
-            "- لا يُنفذ أي إجراء في حالة النية الغامضة أو نقص البيانات إلا بعد استيضاح المستخدم.\n"
-            "- التحقق من البريد وجهة الإرسال.\n"
-            "- المهنية واجبة في كل الردود.\n"
-            "- تحقق دائم من أن عمليات قاعدة البيانات مقيدة بالبريد الإلكتروني للمستخدم.\n"
+            "🚨 Safety Procedures:\n"
+            "- When user asks to send email or WhatsApp, verify: message type, channel used, and recipient(s). If missing, inquire.\n"
+            "- For send requests mentioning specific client(s) or all clients: extract real data from database, never use dummy data (emails/phone numbers).\n"
+            "- No sending or execution except with clear and explicit request.\n"
+            "- All CRUD operations occur on internal database only.\n"
+            "- CRM used exclusively for displaying/extracting customer data.\n"
+            "- No action executed with ambiguous intent or missing data except after user clarification.\n"
+            "- Verify email and sending destination.\n"
+            "- Professionalism required in all responses.\n"
+            "- Always verify database operations are restricted by user email.\n"
         ),
         expected_output=(
-            "مخرجات مقتضبة حسب النية:\n"
-            "✅ نعم/لا: إجابة قصيرة.\n"
-            "✅ الصياغة: النص فقط.\n"
-            "✅ الإرسال: تأكيد مختصر مع النص عند الحاجة.\n"
-            "✅ قاعدة البيانات: نتيجة CRUD مرتبطة ببريد المستخدم مع نص تأكيد.\n"
-            "✅ ملفات PDF/Word/Excel: رسالة تأكيد مع مسار الملف في مجلد 'files/'.\n"
-            "✅ إدارة CRM: عرض أو استخراج بيانات العملاء فقط عند تصريح المستخدم.\n"
-            "✅ استفسارات Siyadah: رد دقيق من القاعدة المعرفية.\n"
-            "✅ استيضاح: سؤال مباشر لتحديد النية أو تزويد البيانات الناقصة.\n"
-            "⚠️ لا ملخصات أو تعليقات إضافية إلا بطلب المستخدم.\n"
-            "🔣 لغة الرد = لغة المستخدم.\n\n"
-            "**معايير النجاح للمهام الرقمية:**\n"
-            "- وجود رقم واضح عند التنفيذ\n"
-            "- نص تأكيد بلغة المستخدم\n"
-            "- عند تحقق هذا التنسيق، تعتبر المهمة مكتملة"
+            "Concise outputs based on intent:\n"
+            "✅ Yes/No: Short answer.\n"
+            "✅ Drafting: Text only.\n"
+            "✅ Sending: Brief confirmation with text when needed.\n"
+            "✅ Database: CRUD result linked to user email with confirmation text.\n"
+            "✅ PDF/Word/Excel files: Confirmation message with file path in 'files/' folder.\n"
+            "✅ CRM Management: Display or extract customer data only upon user authorization.\n"
+            "✅ Siyadah inquiries: Accurate response from knowledge base.\n"
+            "✅ Clarification: Direct question to determine intent or provide missing data.\n"
+            "⚠️ No summaries or additional comments except by user request.\n"
+            "🔣 Response language = {user_language}.\n\n"
+            "**Success Criteria for Digital Tasks:**\n"
+            "- Clear number present during execution\n"
+            "- Confirmation text in user language\n"
+            "- When this format is achieved, task is considered complete"
         ),
     )
 
@@ -165,8 +168,8 @@ def detect_language(text: str) -> str:
     langid.set_languages(['fr', 'en', 'ar'])
     lang, prob = langid.classify(text)
     print(lang)
-    return lang  # will always be 'fr', 'en', or 'ar'
-# FastAPI endpoint to process the user prompt
+    return lang  
+
 @app.post("/process-prompt/")
 async def process_prompt(request: UserPromptRequest):
     """
@@ -177,18 +180,15 @@ async def process_prompt(request: UserPromptRequest):
     """
     user_prompt = request.prompt
     context_window = request.context
-    user_email = "mohamed.ak@d10.sa"
-    # Initialize LLM and Manager
+    user_email = request.user_email
     llm_obj = get_llm()
-    mgr = manager_agent(llm_obj)
-
-    # Detect language
+    
     try:
         user_language = detect_language(user_prompt)
     except Exception:
         user_language = "en"
+    mgr = manager_agent(llm_obj, user_language)
 
-    # Get knowledge base
     try:
         client = MongoClient(os.getenv("MONGO_DB_URI"))
         db = client[os.getenv("DB_NAME")]
@@ -206,17 +206,16 @@ async def process_prompt(request: UserPromptRequest):
         tasks=[understand_and_execute],
         process=Process.hierarchical,
         manager_agent=mgr,
-        verbose=True,
-        planning=True,
+        verbose=False,
     )
 
     start = time.time()
     try:
-        # Run agent process
         final = crew.kickoff(inputs={
             "user_prompt": user_prompt,
             "context_window": context_window,
-            "user_email": user_email
+            "user_email": user_email,
+            "user_language": user_language
         })
 
         if hasattr(final, "raw"):
@@ -227,7 +226,7 @@ async def process_prompt(request: UserPromptRequest):
             final_output = str(final)
 
         execution_time = time.time() - start
-
+        print(execution_time)
         # -----------------------
         # Check ./files for one file
         # -----------------------
