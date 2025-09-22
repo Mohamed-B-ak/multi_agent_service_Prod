@@ -95,6 +95,7 @@ def get_understand_and_execute_task():
 
             "🧠 Context Usage Policy (internal only):\n"
             "- {context_window} can be used to understand the prompt , get some informations (whatsApp or email content or contacts(phone number or mail address) ) and complete missing information when needed, without displaying summaries or context references.\n"
+            "- use the context window to understand what the user mean "
             "- Explicit user request has priority if it conflicts with context.\n\n"
 
             "📝 Strict Concision Mode:\n"
