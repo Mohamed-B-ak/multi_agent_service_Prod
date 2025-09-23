@@ -1,6 +1,6 @@
 from crewai import Agent
 
-def understanding_agent(llm_obj, user_language="en") -> Agent:
+def understanding_agent(llm_obj, context_window=[], user_language="en") -> Agent:
     goal_text = (
         f"Apply intelligent, human-like judgment to understand user requests with nuance and context. "
         f"Analyze each request holistically: determine if it's actionable immediately or requires clarification. "
@@ -12,6 +12,9 @@ def understanding_agent(llm_obj, user_language="en") -> Agent:
         f"3) Understand context from conversation history to fill gaps, "
         f"4) Distinguish between 'nice-to-have' and 'must-have' information, "
         f"5) Make judgment calls like an experienced professional, not a rule-following bot. "
+        f"The following is the conversation context you must use to understand the user's intent:\n"
+        f"{context_window}\n\n"
+        f"Always consider this context when interpreting vague or incomplete user prompts. "
         f"Respond naturally and intelligently in {user_language}."
     )
 

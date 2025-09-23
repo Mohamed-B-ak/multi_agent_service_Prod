@@ -49,13 +49,13 @@ class UserPromptRequest(BaseModel):
     user_email: Optional[str] = None   
     context: list = []   
 
-def get_workers(user_email, user_language, knowledge_base):
+def get_workers(user_email, user_language, knowledge_base, context_window=[]):
     """
     Initialize and return all worker agents.
     """
     llm_obj = get_llm()
     return [
-        understanding_agent(llm_obj, user_language),
+        understanding_agent(llm_obj, user_language, context_window),
         content_agent(llm_obj, user_language),
         email_agent(llm_obj, user_email, user_language),
         whatsapp_agent(llm_obj, user_email, user_language),
@@ -67,25 +67,26 @@ def get_workers(user_email, user_language, knowledge_base):
         crm_agent(llm_obj, user_email, user_language),
     ]
 
+from crewai import Task
 
 from crewai import Task
 
 def get_understand_and_execute_task():
     """
-    Define and return the task for understanding and executing user prompts, 
-    using context internally only when relevant.
-    The system supports multiple channels: Email, WhatsApp, Calls,
-    Databases, Website Analysis, File Creation, CRM Agent (query only),
-    and Siyadah Knowledge Agent.
+    Define and return the task for understanding and executing user prompts,
+    with strict enforcement that no mock or dummy data (like example.com) is ever used.
+    All recipient data must come directly from the Database Agent.
     """
 
     return Task(
         description=(
             "You manage an AI communication system capable of:\n"
             "1. 📧 **Email Content**: Draft professional emails using Content Specialist + Content Enhancement Agent.\n"
-            "2. 📤 **Send Email**: Only with explicit request and after passing content to Content Enhancement Agent (make sure that the content don' contain placeholders).\n"
+            "2. 📤 **Send Email**: Only with explicit request and after passing content to Content Enhancement Agent "
+            "(make sure that the content doesn't contain placeholders).\n"
             "3. 📱 **WhatsApp Content**: Draft messages using Content Specialist + Content Enhancement Agent.\n"
-            "4. 📲 **Send WhatsApp**: Only with explicit request while passing content through Content Enhancement Agent (make sure that the content don' contain placeholders).\n"
+            "4. 📲 **Send WhatsApp**: Only with explicit request while passing content through Content Enhancement Agent "
+            "(make sure that the content doesn't contain placeholders).\n"
             "5. ☎️ **Call Scripts**: Initial script from Content Specialist + improvement via Content Enhancement Agent.\n"
             "6. ☎️ **Make Call**: Only after confirmation.\n"
             "7. 🗂️ **Database Operations (MongoDB)**: Execute CRUD (add, update, delete, query) restricted by user email {user_email}.\n"
@@ -94,8 +95,9 @@ def get_understand_and_execute_task():
             "10. 🤖 **Siyadah Questions and Inquiries**: Pass them to Siyadah Intelligent Agent.\n\n"
 
             "🧠 Context Usage Policy (internal only):\n"
-            "- {context_window} can be used to understand the prompt , get some informations (whatsApp or email content or contacts(phone number or mail address) ) and complete missing information when needed, without displaying summaries or context references.\n"
-            "- use the context window to understand what the user mean "
+            "- {context_window} can be used to understand the prompt , get some informations (whatsApp or email content or contacts(phone number or mail address) ) "
+            "and complete missing information when needed, without displaying summaries or context references.\n"
+            "- Use the context window to understand what the user means.\n"
             "- Explicit user request has priority if it conflicts with context.\n\n"
 
             "📝 Strict Concision Mode:\n"
@@ -106,14 +108,16 @@ def get_understand_and_execute_task():
 
             "📌 Smart Routing:\n"
             "📧 intent = 'draft email' → Content Specialist + Content Enhancement Agent\n"
-            "📧 intent = 'send email' → (Content Specialist + Content Enhancement Agent if no content already generated in the context window ) + Email Specialist\n"
+            "📧 intent = 'send email' → (Content Specialist + Content Enhancement Agent if no content already generated in the context window ) "
+            "+ Database Specialist (to fetch recipients) + Email Specialist\n"
             "📱 intent = 'draft whatsapp' → Content Specialist + Content Enhancement Agent\n"
-            "📱 intent = 'send whatsapp' → (Content Specialist + Content Enhancement Agent if no content already generated in the context window ) + WhatsApp Specialist\n"
+            "📱 intent = 'send whatsapp' → (Content Specialist + Content Enhancement Agent if no content already generated in the context window ) "
+            "+ Database Specialist (to fetch recipients) + WhatsApp Specialist\n"
             "☎️ intent = 'draft call' → Content Specialist + Content Enhancement Agent\n"
             "☎️ intent = 'make call' → Content Specialist + Content Enhancement Agent + Call Specialist\n"
             "🗂️ intent = 'database operations' (add/update/delete/query) → Database Specialist\n"
             "📝 intent = 'create PDF, Word or Excel file' → File Creator Agent\n"
-            "🏢 intent = 'CRM' → Invoke CRM Agent only to extract/display customer data  (Only with explicit request).\n"
+            "🏢 intent = 'CRM' → Invoke CRM Agent only to extract/display customer data (Only with explicit request).\n"
             "❓ intent = 'inquiry' or 'help' → Siyadah Intelligent Agent\n"
             "🔄 multiple intents → Coordinate between agents\n"
             "❓ unclear intent or missing data → Smart clarification with direct question before execution.\n\n"
@@ -123,10 +127,12 @@ def get_understand_and_execute_task():
             "2. Analyze intent using Understanding Agent.\n"
             "3. Respond in same user language.\n"
             "4. In *drafting*: Generate content then enhance.\n"
-            "5. In *sending*: Verify message type, channel, and recipients → Extract real client data from DB if needed → Draft + enhance then pass to channel agent.\n"
+            "5. In *sending*: Verify message type, channel, and recipients → "
+            "⚠️ CRITICAL: Always query the Database Specialist for real customer emails/phone numbers before sending. "
+            "NEVER use placeholders, dummy data, or example.com.\n"
             "6. In *database*: All add, update, and delete operations execute on internal DB only.\n"
             "7. In *files*: Create file via File Creator Agent and save in 'files/' folder.\n"
-            "8. In *CRM management*: Only allow query/extraction .\n"
+            "8. In *CRM management*: Only allow query/extraction.\n"
             "9. In Siyadah inquiries: Pass to Knowledge Agent.\n"
             "10. Direct questions: Concise answer.\n"
             "11. In case of ambiguous intent or missing data: Ask clarification question before any execution.\n"
@@ -134,8 +140,10 @@ def get_understand_and_execute_task():
             "13. Handle errors with polite and brief language.\n\n"
 
             "🚨 Safety Procedures:\n"
-            "- When user asks to send email or WhatsApp, verify: message type, channel used, and recipient(s). If missing, inquire.\n"
-            "- For send requests mentioning specific client(s) or all clients: extract real data from database, never use dummy data (emails/phone numbers).\n"
+            "- For ALL send requests (email or WhatsApp): "
+            "recipients MUST come from Database Specialist (customers/clients collection).\n"
+            "- If no real recipients are found, STOP and ask the user. "
+            "Do not fallback to dummy addresses (like client@example.com).\n"
             "- No sending or execution except with clear and explicit request.\n"
             "- All CRUD operations occur on internal database only.\n"
             "- CRM used exclusively for displaying/extracting customer data.\n"
@@ -148,7 +156,7 @@ def get_understand_and_execute_task():
             "Concise outputs based on intent:\n"
             "✅ Yes/No: Short answer.\n"
             "✅ Drafting: Text only.\n"
-            "✅ Sending: Brief confirmation with text when needed.\n"
+            "✅ Sending: Brief confirmation with text when needed, showing the REAL recipient(s) from DB.\n"
             "✅ Database: CRUD result linked to user email with confirmation text.\n"
             "✅ PDF/Word/Excel files: Confirmation message with file path in 'files/' folder.\n"
             "✅ CRM Management: Display or extract customer data only upon user authorization.\n"
@@ -157,11 +165,13 @@ def get_understand_and_execute_task():
             "⚠️ No summaries or additional comments except by user request.\n"
             "🔣 Response language = {user_language}.\n\n"
             "**Success Criteria for Digital Tasks:**\n"
-            "- Clear number present during execution\n"
-            "- Confirmation text in user language\n"
+            "- All recipients are fetched from DB, never mocked.\n"
+            "- Confirmation text includes the actual recipient(s).\n"
             "- When this format is achieved, task is considered complete"
         ),
     )
+
+
 
 
 def detect_language(text: str) -> str:
@@ -198,7 +208,7 @@ async def process_prompt(request: UserPromptRequest):
     except:
         knowledge_base = ""
 
-    workers = get_workers(user_email, user_language, knowledge_base)
+    workers = get_workers(user_email, user_language, knowledge_base, context_window)
     understand_and_execute = get_understand_and_execute_task()
 
     crew = Crew(
