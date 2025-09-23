@@ -52,7 +52,7 @@ def planner(user_prompt: str, context: List[Dict] = None, llm_object = None) -> 
         Current Request: '{user_prompt}'
         
         IMPORTANT: Use the conversation context above to understand what the user means.
-        
+        IMPORTANT: if the user message is a simple question and not need a specialist agent , just return the same user input 
         STRICT RULES - DO NOT ADD TASKS THE USER DIDN'T REQUEST:
         1. If user says "prepare/جهز" or "draft/اكتب" = ONLY create content, NO sending
         2. If user says "send/أرسل" = Include sending steps
@@ -127,7 +127,7 @@ if __name__ == "__main__":
     ]
     
     # Call the planner
-    user_prompt = "أرسل لهم رسالة ترحيب"
+    user_prompt = " أهلا "
     result = planner(user_prompt, context, llm)
     
     print("Decomposed Tasks:")
