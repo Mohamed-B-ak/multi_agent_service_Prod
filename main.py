@@ -20,6 +20,7 @@ from agents.web_analyser_agent import web_analyser_agent
 from agents.knowledge_enhanced_content_agent import knowledge_enhancer_agent
 from agents.file_creation_agent import file_creation_agent
 from agents.crm_agent import crm_agent
+from agents.planner_agent import planner
 from fastapi.responses import JSONResponse
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -104,7 +105,7 @@ def get_understand_and_execute_task():
             "- Answer only what's asked without additions.\n"
             "- Yes/No answered briefly.\n\n"
 
-            "User Request: {user_prompt}\n\n"
+            "User Request : \n\n {user_prompt}\n\n"
 
             "📌 Smart Routing:\n"
             "📧 intent = 'draft email' → Content Specialist + Content Enhancement Agent\n"
@@ -211,6 +212,8 @@ async def process_prompt(request: UserPromptRequest):
     workers = get_workers(user_email, user_language, knowledge_base, context_window)
     understand_and_execute = get_understand_and_execute_task()
 
+    tasks = planner(user_prompt, context_window, llm_obj)
+
     crew = Crew(
         agents=workers,
         tasks=[understand_and_execute],
@@ -222,7 +225,7 @@ async def process_prompt(request: UserPromptRequest):
     start = time.time()
     try:
         final = crew.kickoff(inputs={
-            "user_prompt": user_prompt,
+            "user_prompt": tasks,
             "context_window": context_window,
             "user_email": user_email,
             "user_language": user_language

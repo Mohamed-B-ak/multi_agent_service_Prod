@@ -21,17 +21,20 @@ def planner(user_prompt: str, context: List[Dict] = None, llm_object = None) -> 
     # Create the decomposition agent
     decomposer = Agent(
         role="Task Decomposer with Context Understanding",
-        goal="Understand user requests using conversation context, then break them into clear, complete subtasks including data retrieval steps",
-        backstory="""You are an expert at understanding conversation context and decomposing tasks.
-        You analyze the conversation history to understand what users mean by references like:
-        - "them" refers to previously mentioned entities (you need their contact info!)
-        - "give me their names" refers to entities discussed earlier
-        - "send them" means you need to GET their contact details first
-        - Numbers and counts from previous messages
+        goal="Understand user requests and break them into ONLY the necessary subtasks - no extras",
+        backstory="""You are an expert at understanding user intent and decomposing ONLY what was requested.
         
-        CRITICAL: Before sending any messages, you MUST retrieve recipient contact information.
-        If the context mentions 4 customers named X, Y, Z, W and user says "send them a message",
-        you must FIRST get their emails/phones from the database before any sending action.""",
+        CRITICAL RULES:
+        1. ONLY include tasks the user explicitly asked for
+        2. If user says "prepare" or "draft" - DO NOT add sending steps
+        3. If user says "send" - then include sending steps
+        4. If user mentions "them" or references people from context - get their contacts FIRST
+        5. Never add optional or helpful tasks the user didn't request
+        
+        Examples:
+        - "جهزلي حملة ايميلات" = Only prepare/draft, NO sending
+        - "أرسل لهم رسالة" = Get contacts + draft + send
+        - "اكتب ايميل" = Only write, NO sending""",
         verbose=False,
         allow_delegation=False,
         llm=llm_object,
@@ -49,11 +52,16 @@ def planner(user_prompt: str, context: List[Dict] = None, llm_object = None) -> 
         Current Request: '{user_prompt}'
         
         IMPORTANT: Use the conversation context above to understand what the user means.
-        IMPORTANT: if the user message is a simple question and not need a specialist agent , just return the same user input 
-        Critical Rules:
-        - If sending messages to "them" or specific people mentioned in context, FIRST retrieve their contact information
-        - Never send messages without first getting recipient emails/phone numbers
-        - If context mentions specific customers/people, you must extract their contact details before any sending action
+        
+        STRICT RULES - DO NOT ADD TASKS THE USER DIDN'T REQUEST:
+        1. If user says "prepare/جهز" or "draft/اكتب" = ONLY create content, NO sending
+        2. If user says "send/أرسل" = Include sending steps
+        3. If user says "create campaign/حملة" without "send" = ONLY prepare, NO sending
+        4. NEVER add helpful extras like "send" when not requested
+        
+        Critical Rules for References:
+        - If sending to "them" or specific people from context, FIRST retrieve their contact information
+        - If preparing content for general use (no specific recipients), NO need to get contacts
         
         Break down the request into subtasks and output a simple numbered list like:
         1. [Action] - [Who should do it]
@@ -89,7 +97,38 @@ def planner(user_prompt: str, context: List[Dict] = None, llm_object = None) -> 
     
     # Return the raw result if it's an object, otherwise return as string
     if hasattr(result, 'raw'):
-        print(result.raw)
         return result.raw
-    print(str(result))
     return str(result)
+
+
+# Example usage
+if __name__ == "__main__":
+    from dotenv import load_dotenv
+    import os
+    from crewai import LLM
+    
+    # Load environment
+    load_dotenv()
+    
+    # Initialize LLM
+    llm = LLM(
+        model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+        api_key=os.getenv("OPENAI_API_KEY"),
+        temperature=0.1,
+        max_tokens=500,
+    )
+    
+    # Example context
+    context = [
+        {'role': 'user', 'content': 'كم لدي من عميل في حسابي', 'timestamp': '2025-09-23T08:14:36.549Z'},
+        {'role': 'assistant', 'content': 'لديك 4 عملاء في حسابك.', 'timestamp': '2025-09-23T08:14:36.549Z'},
+        {'role': 'user', 'content': 'عطني أسمائهم', 'timestamp': '2025-09-23T08:15:48.442Z'},
+        {'role': 'assistant', 'content': 'الأسماء هي: توفيق أنيس، بن نجمة سحر، دريدي هبة، وعكاشة محمد.', 'timestamp': '2025-09-23T08:15:48.442Z'}
+    ]
+    
+    # Call the planner
+    user_prompt = ""
+    result = planner(user_prompt, context, llm)
+    
+    print("Decomposed Tasks:")
+    print(result)
