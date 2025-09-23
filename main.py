@@ -47,7 +47,7 @@ from typing import Optional
 
 class UserPromptRequest(BaseModel):
     prompt: str
-    user_email: Optional[str] = None   
+    user_email: str  #Optional[str] = None   
     context: list = []   
 
 def get_workers(user_email, user_language, knowledge_base, context_window=[]):
@@ -191,7 +191,7 @@ async def process_prompt(request: UserPromptRequest):
     """
     user_prompt = request.prompt
     context_window = request.context
-    user_email = "mohamed.ak@d10.sa"
+    user_email = request.user_email
     llm_obj = get_llm()
     
     try:
