@@ -3,7 +3,7 @@ from utils import get_llm
 from .tasks import get_customer_service_task
 from agents.email_sender_agent import email_agent
 from agents.whatsApp_sender import whatsapp_agent
-
+from agents.customer_service_agent import unified_customer_service_agent
 
 def generate_reply(customer_id, channel, message, user_email, history):
     """
@@ -15,14 +15,13 @@ def generate_reply(customer_id, channel, message, user_email, history):
     # Initialize LLM and agents
     llm_obj = get_llm()
     workers = [
-        email_agent(llm_obj, user_email),
-        whatsapp_agent(llm_obj, user_email),
+        unified_customer_service_agent(llm_obj, user_email)
     ]
 
     # Build the task
     task = get_customer_service_task(channel, message, history, customer_id)
     if channel == "whatsApp":
-        task.agent = whatsapp_agent(llm_obj, user_email)
+        task.agent = unified_customer_service_agent(llm_obj, user_email)
     # Create the crew
     crew = Crew(
         agents=workers,
