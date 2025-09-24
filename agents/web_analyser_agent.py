@@ -1,6 +1,6 @@
 import os
 from crewai import Agent
-from crewai_tools import WebsiteSearchTool, FileReadTool
+#from crewai_tools import WebsiteSearchTool, FileReadTool
 
 def web_analyser_agent(llm_obj, user_language="en") -> Agent:
     """
@@ -14,8 +14,8 @@ def web_analyser_agent(llm_obj, user_language="en") -> Agent:
     Returns:
         Agent instance
     """
-    scraper_tool = WebsiteSearchTool()
-    analyzer_tool = FileReadTool()
+    #scraper_tool = WebsiteSearchTool()
+    #analyzer_tool = FileReadTool()
 
     goal_text = (
         "Scrape websites, extract textual content, and generate structured analysis "
@@ -35,7 +35,7 @@ def web_analyser_agent(llm_obj, user_language="en") -> Agent:
         role="Web Scraping and Analysis Specialist",
         goal=goal_text,
         backstory=backstory_text,
-        tools=[scraper_tool, analyzer_tool],
+        #tools=[scraper_tool, analyzer_tool],
         allow_delegation=False,
         llm=llm_obj,
         verbose=True,
