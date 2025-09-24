@@ -1,6 +1,6 @@
 from crewai import Crew, Process
 from utils import get_llm
-from tasks import get_customer_service_task
+from .tasks import get_customer_service_task
 from agents.email_sender_agent import email_agent
 from agents.whatsApp_sender import whatsapp_agent
 
