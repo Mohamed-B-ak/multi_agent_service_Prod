@@ -50,7 +50,7 @@ from typing import Optional
 
 class UserPromptRequest(BaseModel):
     prompt: str
-    user_email: str #Optional[str] = None   
+    user_email: Optional[str] = None   
     context: list = []   
 
 def get_workers(user_email, user_language, knowledge_base, context_window=[]):
@@ -194,7 +194,7 @@ async def process_prompt(request: UserPromptRequest):
     """
     user_prompt = request.prompt
     context_window = request.context
-    user_email = request.user_email #"mohamed.ak@d10.sa"
+    user_email = "mohamed.ak@d10.sa"
     llm_obj = get_llm()
     
     try:
@@ -303,6 +303,14 @@ async def webhook_listener(request: Request):
             else:
                 user_email = None
             #TODO getting the context
+            print("customer_number")
+            print(customer_number)
+            print("customer_message")
+            print(customer_message)
+            print("user_email")
+            print(user_email)
+            print("time")
+            print(time)
             generate_reply(customer_number, channel="whatsApp", message= customer_message, user_email=user_email, history=[])
             
             return Response(status_code=200)
