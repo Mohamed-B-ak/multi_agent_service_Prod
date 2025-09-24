@@ -1,5 +1,6 @@
 import os
 import requests
+from datetime import datetime
 from crewai.tools import BaseTool
 from pymongo import MongoClient
 from openai import OpenAI
@@ -87,7 +88,20 @@ class MailerSendTool(BaseTool):
         try:
             response = requests.post(url, headers=headers, json=data, timeout=10)
             if response.status_code == 202:
-                return f"✅ Email accepted for delivery to {to_email}."
+                # ✅ Save to DB after success
+                try:
+                    emails_collection = db["emailmessages"]  # will create if not exists
+                    emails_collection.insert_one({
+                        "user_email": self.user_email,
+                        "to_email": to_email,
+                        "time": datetime.utcnow(),
+                        "email_subject": subject,
+                        "email_content": message
+                    })
+                except Exception as e:
+                    return f"✅ Email accepted for delivery to {to_email}, but failed to save: {e}"
+
+                return f"✅ Email accepted for delivery to {to_email} and saved to DB."
             else:
                 return f"❌ Failed to send. Status: {response.status_code}, Error: {response.text}"
         except Exception as e:

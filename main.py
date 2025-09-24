@@ -22,6 +22,7 @@ from agents.file_creation_agent import file_creation_agent
 from agents.crm_agent import crm_agent
 from agents.planner_agent import planner
 from fastapi.responses import JSONResponse
+from fastapi import Request, Response
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -47,7 +48,7 @@ from typing import Optional
 
 class UserPromptRequest(BaseModel):
     prompt: str
-    user_email: str  #Optional[str] = None   
+    user_email: str #Optional[str] = None   
     context: list = []   
 
 def get_workers(user_email, user_language, knowledge_base, context_window=[]):
@@ -191,7 +192,7 @@ async def process_prompt(request: UserPromptRequest):
     """
     user_prompt = request.prompt
     context_window = request.context
-    user_email = request.user_email
+    user_email = request.user_email #"mohamed.ak@d10.sa"
     llm_obj = get_llm()
     
     try:
@@ -270,6 +271,25 @@ async def process_prompt(request: UserPromptRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error occurred: {str(e)}")
 
+
+@app.post("/webhook/")
+async def webhook_listener(request: Request):
+    """
+    Webhook endpoint for receiving external events.
+    Does not return a body, only a 200 OK status.
+    """
+    try:
+        payload = await request.json()
+        headers = dict(request.headers)
+
+        # 👉 Process the webhook event here
+        print("Webhook received:", payload)
+
+        # Do whatever you need (e.g., push to agents, DB, etc.)
+        return Response(status_code=200)  # ✅ No body
+    except Exception as e:
+        # If something goes wrong, respond with 400
+        return Response(status_code=400)
 
 @app.get("/")
 async def get_chat_interface():

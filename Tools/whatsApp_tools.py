@@ -4,6 +4,7 @@ import asyncio
 import platform
 import inspect
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from crewai.tools import BaseTool
 from pymongo import MongoClient
 from whatsapp_client_python.whatsapp_client import WhatsAppClient
@@ -69,6 +70,17 @@ class WhatsAppTool(BaseTool):
                     success = result
 
             if success:
+                try:
+                    emails_collection = db["whatsappmessages"]  
+                    emails_collection.insert_one({
+                        "user_email": self.user_email,
+                        "to_number": to_number,
+                        "time": datetime.utcnow(),
+                        "message": message,
+
+                    })
+                except Exception as e:
+                    return f"✅ WhatsApp message successfully sent to {to_number}, but failed to save: {e}"
                 return f"✅ WhatsApp message successfully sent to {to_number}: {message[:80]}"
             else:
                 return f"❌ Failed to send WhatsApp message to {to_number}: {message[:80]}"
