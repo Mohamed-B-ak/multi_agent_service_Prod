@@ -9,7 +9,7 @@ class MailerSendTool(BaseTool):
     description: str = "Sends an email using MailerSend API."
 
     # ✅ declare user_email as a Pydantic field
-    user_email: "mohmed.ak@d10.sa"
+    user_email: str
 
     def _run(self, to_email: str, subject: str, message: str) -> str:
         print(self.user_email)
