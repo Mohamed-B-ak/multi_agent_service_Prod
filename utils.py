@@ -1,3 +1,5 @@
+import os
+from crewai import LLM
 from pymongo import MongoClient
 import os
 
@@ -11,6 +13,20 @@ print(os.getenv("MONGO_DB_URI"))
 client = MongoClient(os.getenv("MONGO_DB_URI"))
 db = client[os.getenv("DB_NAME")]
 collection = db["whatsappmessages"]
+
+
+def get_llm():
+    """
+    Initialize the LLM (Large Language Model) with a predefined model and API key.
+    """
+    return LLM(
+        model="gpt-4o",
+        api_key=os.getenv("OPENAI_API_KEY"),
+        temperature=0.1,
+        max_tokens=500,
+
+    )
+
 
 def get_last_messages(to_number: str, limit: int = 4):
     """

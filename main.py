@@ -23,6 +23,8 @@ from agents.crm_agent import crm_agent
 from agents.planner_agent import planner
 from fastapi.responses import JSONResponse
 from fastapi import Request, Response
+from datetime import datetime
+from customers_service.orchestrator import generate_reply
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -272,23 +274,77 @@ async def process_prompt(request: UserPromptRequest):
         raise HTTPException(status_code=500, detail=f"Error occurred: {str(e)}")
 
 
+
 @app.post("/webhook/")
 async def webhook_listener(request: Request):
     """
-    Webhook endpoint for receiving external events.
-    Does not return a body, only a 200 OK status.
+    Webhook endpoint for receiving external events (WhatsApp, Email).
+    Processes message, generates reply with agents, and sends it back.
     """
+    from customers_service.orchestrator import generate_reply
     try:
         payload = await request.json()
         headers = dict(request.headers)
 
-        # 👉 Process the webhook event here
-        print("Webhook received:", payload)
+        # Detect channel & extract message
+        if "from" in payload and payload.get("event") == "onmessage":
+            channel = "whatsApp"
+            customer_number = payload.get("event")
+            customer_message = payload.get("event")
+            session = payload.get("event")
+            time = datetime.utcnow(),
+            #TODO save the comming message    
+            client = MongoClient(os.getenv("MONGO_DB_URI"))
+            db = client[os.getenv("DB_NAME")]
+            usercredentials = db["usercredentials"]
+            doc = usercredentials.find_one({"whatsapp.sessionName": session})
+            if doc:
+                user_email = doc.get("userEmail")
+            else:
+                user_email = None
+            #TODO getting the context
+            generate_reply(customer_number, channel="whatsApp", message= customer_message, user_email=user_email, history=[])
+            
+            return Response(status_code=200)
+            #customer_id, channel, message = await handlers.handle_whatsapp(payload)
+        #elif "recipient" in payload:
+            #customer_id, channel, message = await handlers.handle_email(payload)
+        else:
+            # Unknown webhook source, just ack
+            return Response(status_code=200)
 
-        # Do whatever you need (e.g., push to agents, DB, etc.)
-        return Response(status_code=200)  # ✅ No body
+        print(f"📥 Incoming {channel} message from {customer_id}: {message}")
+
+        # Save incoming customer message
+        db.save_message(customer_id, channel, "customer", message)
+
+        # Get full conversation history
+        history = db.get_conversation(customer_id)
+
+        # Generate reply with multi-agent system
+        reply = await orchestrator.generate_reply(customer_id, channel, message, history)
+
+        # Save agent reply to DB
+        db.save_message(customer_id, channel, "agent", reply)
+
+        # Send reply via the correct agent
+        if channel == "whatsapp":
+            llm_obj = get_llm()
+            wa = whatsapp_agent(llm_obj, customer_id, "auto")
+            wa.send_message(customer_id, reply)
+            print(f"📤 Sent WhatsApp reply to {customer_id}: {reply}")
+
+        elif channel == "email":
+            llm_obj = get_llm()
+            em = email_agent(llm_obj, customer_id, "auto")
+            em.send_email(customer_id, "Customer Support", reply)
+            print(f"📤 Sent Email reply to {customer_id}: {reply}")
+
+        # Always acknowledge webhook
+        return Response(status_code=200)
+
     except Exception as e:
-        # If something goes wrong, respond with 400
+        print(f"❌ Webhook error: {e}")
         return Response(status_code=400)
 
 @app.get("/")
