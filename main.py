@@ -50,7 +50,7 @@ from typing import Optional
 
 class UserPromptRequest(BaseModel):
     prompt: str
-    user_email: Optional[str] = None   
+    user_email: str #Optional[str] = None   
     context: list = []   
 
 def get_workers(user_email, user_language, knowledge_base, context_window=[]):
@@ -194,7 +194,7 @@ async def process_prompt(request: UserPromptRequest):
     """
     user_prompt = request.prompt
     context_window = request.context
-    user_email = "mohamed.ak@d10.sa"
+    user_email = request.user_email #"mohamed.ak@d10.sa"
     llm_obj = get_llm()
     
     try:
@@ -285,13 +285,13 @@ async def webhook_listener(request: Request):
     try:
         payload = await request.json()
         headers = dict(request.headers)
-
+        print(payload)
         # Detect channel & extract message
         if "from" in payload and payload.get("event") == "onmessage":
             channel = "whatsApp"
-            customer_number = payload.get("event")
-            customer_message = payload.get("event")
-            session = payload.get("event")
+            customer_number = payload.get("from")
+            customer_message = payload.get("body")
+            session = payload.get("session")
             time = datetime.utcnow(),
             #TODO save the comming message    
             client = MongoClient(os.getenv("MONGO_DB_URI"))
@@ -302,6 +302,8 @@ async def webhook_listener(request: Request):
                 user_email = doc.get("userEmail")
             else:
                 user_email = None
+            print(user_email)
+            user_email = "mohamed.ak@d10.sa"
             #TODO getting the context
             print("customer_number")
             print(customer_number)
