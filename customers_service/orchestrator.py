@@ -21,7 +21,8 @@ def generate_reply(customer_id, channel, message, user_email, history):
 
     # Build the task
     task = get_customer_service_task(channel, message, history, customer_id)
-
+    if channel == "whatsApp":
+        task.agent = whatsapp_agent(llm_obj, user_email)
     # Create the crew
     crew = Crew(
         agents=workers,
