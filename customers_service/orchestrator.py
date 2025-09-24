@@ -26,7 +26,6 @@ def generate_reply(customer_id, channel, message, user_email, history):
     crew = Crew(
         agents=workers,
         tasks=[task],
-        process=Process.hierarchical,
         verbose=True,
     )
 
