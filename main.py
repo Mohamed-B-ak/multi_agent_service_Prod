@@ -192,16 +192,13 @@ async def process_prompt(request: UserPromptRequest):
     
     from utils import save_message, get_messages
      # Save user input
-    try: 
-        save_message(user_email, "user", user_prompt)
-    except:
-        print("i can't save the user prompt")
+
+    save_message(user_email, "user", user_prompt)
+
     # Get chat history
-    try:
-        redis_context_window = get_messages(user_email, limit=10)
-    except:
-        print("there is an error while getting te user context ")
-        redis_context_window = []
+
+    redis_context_window = get_messages(user_email, limit=10)
+
     print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     print(redis_context_window)
     print(type(redis_context_window))
