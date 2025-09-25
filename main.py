@@ -313,7 +313,7 @@ async def webhook_listener(request: Request):
             print(user_email)
             print("time")
             print(time)
-            clean_number = "+" + customer_number.replace("@c.us", "")
+            #clean_number = "+" + customer_number.replace("@c.us", "")
             try:
                 emails_collection = db["whatsappmessages"]  
         
@@ -322,7 +322,7 @@ async def webhook_listener(request: Request):
                 # Vérifier si une conversation existe déjà
                 existing_conversation = emails_collection.find_one({
                     "user_email": user_email,
-                    "to_number": clean_number
+                    "to_number": customer_number
                 })
 
                 if existing_conversation:
@@ -338,7 +338,7 @@ async def webhook_listener(request: Request):
                     # Créer une nouvelle conversation
                     emails_collection.insert_one({
                         "user_email": user_email,
-                        "to_number": clean_number,
+                        "to_number": customer_number,
                         "time": datetime.utcnow(),
                         "messages": [new_message]
                     })
@@ -347,7 +347,7 @@ async def webhook_listener(request: Request):
             try : 
                 conversation = emails_collection.find_one({
                     "user_email": user_email,
-                    "to_number": clean_number
+                    "to_number": customer_number
                 })
 
                 if conversation and "messages" in conversation:
