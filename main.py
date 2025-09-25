@@ -264,6 +264,7 @@ async def process_prompt(request: UserPromptRequest):
         })
 
     except Exception as e:
+        print(e)
         raise HTTPException(status_code=500, detail=f"Error occurred: {str(e)}")
 
 
