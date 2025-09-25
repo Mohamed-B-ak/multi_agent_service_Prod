@@ -313,7 +313,9 @@ async def webhook_listener(request: Request):
             print(user_email)
             print("time")
             print(time)
-            #clean_number = "+" + customer_number.replace("@c.us", "")
+            clean_number = customer_number.replace("@c.us", "")  # Remove @c.us
+            if not clean_number.startswith("+"):
+                clean_number = "+" + clean_number  # Add + if missing
             try:
                 emails_collection = db["whatsappmessages"]  
         
@@ -322,7 +324,7 @@ async def webhook_listener(request: Request):
                 # Vérifier si une conversation existe déjà
                 existing_conversation = emails_collection.find_one({
                     "user_email": user_email,
-                    "to_number": customer_number
+                    "to_number": clean_number
                 })
 
                 if existing_conversation:
@@ -338,7 +340,7 @@ async def webhook_listener(request: Request):
                     # Créer une nouvelle conversation
                     emails_collection.insert_one({
                         "user_email": user_email,
-                        "to_number": customer_number,
+                        "to_number": clean_number,
                         "time": datetime.utcnow(),
                         "messages": [new_message]
                     })
@@ -347,7 +349,7 @@ async def webhook_listener(request: Request):
             try : 
                 conversation = emails_collection.find_one({
                     "user_email": user_email,
-                    "to_number": customer_number
+                    "to_number": clean_number
                 })
 
                 if conversation and "messages" in conversation:
@@ -364,42 +366,6 @@ async def webhook_listener(request: Request):
             generate_reply(customer_number, channel="whatsApp", message= customer_message, user_email=user_email, history=history)
             
             return Response(status_code=200)
-            #customer_id, channel, message = await handlers.handle_whatsapp(payload)
-        #elif "recipient" in payload:
-            #customer_id, channel, message = await handlers.handle_email(payload)
-        else:
-            # Unknown webhook source, just ack
-            return Response(status_code=200)
-
-        print(f"📥 Incoming {channel} message from {customer_id}: {message}")
-
-        # Save incoming customer message
-        db.save_message(customer_id, channel, "customer", message)
-
-        # Get full conversation history
-        history = db.get_conversation(customer_id)
-
-        # Generate reply with multi-agent system
-        reply = await orchestrator.generate_reply(customer_id, channel, message, history)
-
-        # Save agent reply to DB
-        db.save_message(customer_id, channel, "agent", reply)
-
-        # Send reply via the correct agent
-        if channel == "whatsapp":
-            llm_obj = get_llm()
-            wa = whatsapp_agent(llm_obj, customer_id, "auto")
-            wa.send_message(customer_id, reply)
-            print(f"📤 Sent WhatsApp reply to {customer_id}: {reply}")
-
-        elif channel == "email":
-            llm_obj = get_llm()
-            em = email_agent(llm_obj, customer_id, "auto")
-            em.send_email(customer_id, "Customer Support", reply)
-            print(f"📤 Sent Email reply to {customer_id}: {reply}")
-
-        # Always acknowledge webhook
-        return Response(status_code=200)
 
     except Exception as e:
         print(f"❌ Webhook error: {e}")

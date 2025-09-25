@@ -71,6 +71,9 @@ class WhatsAppTool(BaseTool):
 
             if success:
                 try:
+                    clean_number = to_number.replace("@c.us", "")  # Remove @c.us
+                    if not clean_number.startswith("+"):
+                        clean_number = "+" + clean_number  # Add + if missing
                     emails_collection = db["whatsappmessages"]  
             
                     new_message = {"assistant": message}
@@ -78,7 +81,7 @@ class WhatsAppTool(BaseTool):
                     # Vérifier si une conversation existe déjà
                     existing_conversation = emails_collection.find_one({
                         "user_email": self.user_email,
-                        "to_number": to_number
+                        "to_number": clean_number
                     })
 
                     if existing_conversation:
@@ -94,15 +97,15 @@ class WhatsAppTool(BaseTool):
                         # Créer une nouvelle conversation
                         emails_collection.insert_one({
                             "user_email": self.user_email,
-                            "to_number": to_number,
+                            "to_number": clean_number,
                             "time": datetime.utcnow(),
                             "messages": [new_message]
                         })
                 except Exception as e:
-                    return f"✅ WhatsApp message successfully sent to {to_number}, but failed to save: {e}"
-                return f"✅ WhatsApp message successfully sent to {to_number}: {message[:80]}"
+                    return f"✅ WhatsApp message successfully sent to {clean_number}, but failed to save: {e}"
+                return f"✅ WhatsApp message successfully sent to {clean_number}: {message[:80]}"
             else:
-                return f"❌ Failed to send WhatsApp message to {to_number}: {message[:80]}"
+                return f"❌ Failed to send WhatsApp message to {clean_number}: {message[:80]}"
 
         except Exception as e:
             return f"❌ WhatsApp error: {str(e)}"
