@@ -10,3 +10,4 @@ fpdf
 python-docx
 hubspot-api-client
 langid
+redis==6.4.0
