@@ -45,7 +45,7 @@ from typing import Optional
 
 class UserPromptRequest(BaseModel):
     prompt: str
-    user_email: str #Optional[str] = None   
+    user_email: str  #Optional[str] = None   
     context: list = []   
 
 def get_workers(user_email, user_language, knowledge_base, context_window=[]):
@@ -190,6 +190,22 @@ async def process_prompt(request: UserPromptRequest):
     user_email = request.user_email
     llm_obj = get_llm()
     
+    from utils import save_message, get_messages
+     # Save user input
+    try: 
+        save_message(user_email, "user", user_prompt)
+    except:
+        print("i can't save the user prompt")
+    # Get chat history
+    try:
+        redis_context_window = get_messages(user_email, limit=10)
+    except:
+        print("there is an error while getting te user context ")
+        redis_context_window = []
+    print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    print(redis_context_window)
+    print(type(redis_context_window))
+    print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     try:
         user_language = detect_language(user_prompt)
     except Exception:
@@ -205,10 +221,10 @@ async def process_prompt(request: UserPromptRequest):
     except:
         knowledge_base = ""
 
-    workers = get_workers(user_email, user_language, knowledge_base, context_window)
+    workers = get_workers(user_email, user_language, knowledge_base, str(redis_context_window))
     understand_and_execute = get_understand_and_execute_task()
 
-    tasks = planner(user_prompt, context_window, llm_obj)
+    tasks = planner(user_prompt, str(redis_context_window), llm_obj)
     print(tasks)
     print(type(tasks))
     crew = Crew(
@@ -223,7 +239,7 @@ async def process_prompt(request: UserPromptRequest):
     try:
         final = crew.kickoff(inputs={
             "user_prompt": tasks,
-            "context_window": context_window,
+            "context_window": str(redis_context_window),
             "user_email": user_email,
             "user_language": user_language
         })
@@ -234,7 +250,11 @@ async def process_prompt(request: UserPromptRequest):
             final_output = final["raw"]
         else:
             final_output = str(final)
-
+        # Save system response
+        try : 
+            save_message(user_email, "system", final_output)
+        except:
+            print("Sorry, i can't save the system response")
         execution_time = time.time() - start
         print(execution_time)
 
