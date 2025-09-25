@@ -45,7 +45,7 @@ from typing import Optional
 
 class UserPromptRequest(BaseModel):
     prompt: str
-    user_email: str #Optional[str] = None   
+    user_email: Optional[str] = None   
     context: list = []   
 
 def get_workers(user_email, user_language, knowledge_base, context_window=[]):
@@ -92,7 +92,7 @@ def get_understand_and_execute_task():
 
             "⭐ **Knowledge-Based Content Agent Capabilities**:\n"
             "- Creates content directly from company knowledge base\n"
-            "- NEVER uses placeholders like {{name}}, {{company}}, etc.\n"
+            "- NEVER uses placeholders like name, company, etc.\n"
             "- Automatically adapts tone and format for each channel\n"
             "- Produces immediately sendable content without post-processing\n\n"
 
@@ -187,7 +187,7 @@ async def process_prompt(request: UserPromptRequest):
     """
     user_prompt = request.prompt
     context_window = request.context
-    user_email = request.user_email #"mohamed.ak@d10.sa"
+    user_email = "mohamed.ak@d10.sa"
     llm_obj = get_llm()
     
     try:
@@ -209,7 +209,8 @@ async def process_prompt(request: UserPromptRequest):
     understand_and_execute = get_understand_and_execute_task()
 
     tasks = planner(user_prompt, context_window, llm_obj)
-
+    print(tasks)
+    print(type(tasks))
     crew = Crew(
         agents=workers,
         tasks=[understand_and_execute],
