@@ -72,13 +72,32 @@ class WhatsAppTool(BaseTool):
             if success:
                 try:
                     emails_collection = db["whatsappmessages"]  
-                    emails_collection.insert_one({
-                        "user_email": self.user_email,
-                        "to_number": to_number,
-                        "time": datetime.utcnow(),
-                        "message": message,
+            
+                    new_message = {"assistant": message}
 
+                    # Vérifier si une conversation existe déjà
+                    existing_conversation = emails_collection.find_one({
+                        "user_email": self.user_email,
+                        "to_number": to_number
                     })
+
+                    if existing_conversation:
+                        # Mettre à jour la conversation existante
+                        emails_collection.update_one(
+                            {"_id": existing_conversation["_id"]},
+                            {
+                                "$push": {"messages": new_message},
+                                "$set": {"time": datetime.utcnow()}
+                            }
+                        )
+                    else:
+                        # Créer une nouvelle conversation
+                        emails_collection.insert_one({
+                            "user_email": self.user_email,
+                            "to_number": to_number,
+                            "time": datetime.utcnow(),
+                            "messages": [new_message]
+                        })
                 except Exception as e:
                     return f"✅ WhatsApp message successfully sent to {to_number}, but failed to save: {e}"
                 return f"✅ WhatsApp message successfully sent to {to_number}: {message[:80]}"

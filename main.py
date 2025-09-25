@@ -313,6 +313,36 @@ async def webhook_listener(request: Request):
             print(user_email)
             print("time")
             print(time)
+            try:
+                emails_collection = db["whatsappmessages"]  
+        
+                new_message = {"user": customer_message}
+
+                # Vérifier si une conversation existe déjà
+                existing_conversation = emails_collection.find_one({
+                    "user_email": user_email,
+                    "to_number": customer_number
+                })
+
+                if existing_conversation:
+                    # Mettre à jour la conversation existante
+                    emails_collection.update_one(
+                        {"_id": existing_conversation["_id"]},
+                        {
+                            "$push": {"messages": new_message},
+                            "$set": {"time": datetime.utcnow()}
+                        }
+                    )
+                else:
+                    # Créer une nouvelle conversation
+                    emails_collection.insert_one({
+                        "user_email": user_email,
+                        "to_number": customer_number,
+                        "time": datetime.utcnow(),
+                        "messages": [new_message]
+                    })
+            except Exception as e:
+                    print("failed to save the comming whatsApp message ")
             generate_reply(customer_number, channel="whatsApp", message= customer_message, user_email=user_email, history=[])
             
             return Response(status_code=200)
