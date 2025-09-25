@@ -1,8 +1,6 @@
 from crewai import Crew, Process
 from utils import get_llm
 from .tasks import get_customer_service_task
-from agents.email_sender_agent import email_agent
-from agents.whatsApp_sender import whatsapp_agent
 from agents.customer_service_agent import unified_customer_service_agent
 
 def generate_reply(customer_id, channel, message, user_email, history):
