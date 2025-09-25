@@ -313,6 +313,7 @@ async def webhook_listener(request: Request):
             print(user_email)
             print("time")
             print(time)
+            clean_number = "+" + customer_number.replace("@c.us", "")
             try:
                 emails_collection = db["whatsappmessages"]  
         
@@ -321,7 +322,7 @@ async def webhook_listener(request: Request):
                 # Vérifier si une conversation existe déjà
                 existing_conversation = emails_collection.find_one({
                     "user_email": user_email,
-                    "to_number": customer_number
+                    "to_number": clean_number
                 })
 
                 if existing_conversation:
@@ -337,13 +338,30 @@ async def webhook_listener(request: Request):
                     # Créer une nouvelle conversation
                     emails_collection.insert_one({
                         "user_email": user_email,
-                        "to_number": customer_number,
+                        "to_number": clean_number,
                         "time": datetime.utcnow(),
                         "messages": [new_message]
                     })
             except Exception as e:
                     print("failed to save the comming whatsApp message ")
-            generate_reply(customer_number, channel="whatsApp", message= customer_message, user_email=user_email, history=[])
+            try : 
+                conversation = emails_collection.find_one({
+                    "user_email": user_email,
+                    "to_number": clean_number
+                })
+
+                if conversation and "messages" in conversation:
+                    # Prendre les 8 derniers messages
+                    last_messages = conversation["messages"][-8:]
+                    for msg in last_messages:
+                        print(msg)
+                    history = last_messages
+                else:
+                    print("Aucune conversation trouvée")
+                    history = []
+            except:
+                history = []
+            generate_reply(customer_number, channel="whatsApp", message= customer_message, user_email=user_email, history=history)
             
             return Response(status_code=200)
             #customer_id, channel, message = await handlers.handle_whatsapp(payload)
