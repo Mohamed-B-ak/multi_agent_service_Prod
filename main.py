@@ -8,23 +8,18 @@ from pydantic import BaseModel
 from pymongo import MongoClient
 from crewai import Crew, Process, Task, LLM
 from agents.caller_agent import caller_agent
-from agents.code_agent import code_agent
-from agents.content_agent import content_agent
 from agents.db_agent import db_agent
 from agents.email_sender_agent import email_agent
 from agents.manager_agent import manager_agent
-from agents.understanding_agent import understanding_agent
 from agents.whatsApp_sender import whatsapp_agent
 from agents.siyadah_helper_agent import siyadah_helper_agent
-from agents.web_analyser_agent import web_analyser_agent
-from agents.knowledge_enhanced_content_agent import knowledge_enhancer_agent
 from agents.file_creation_agent import file_creation_agent
 from agents.crm_agent import crm_agent
 from agents.planner_agent import planner
+from agents.knowledge_based_content_agent import knowledge_based_content_agent
 from fastapi.responses import JSONResponse
 from fastapi import Request, Response
 from datetime import datetime
-from customers_service.orchestrator import generate_reply
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -59,16 +54,14 @@ def get_workers(user_email, user_language, knowledge_base, context_window=[]):
     """
     llm_obj = get_llm()
     return [
-        understanding_agent(llm_obj, user_language, context_window),
-        content_agent(llm_obj, user_language),
         email_agent(llm_obj, user_email, user_language),
         whatsapp_agent(llm_obj, user_email, user_language),
         caller_agent(llm_obj, user_language),
         db_agent(llm_obj, user_email, user_language),
         siyadah_helper_agent(llm_obj, user_language),
-        knowledge_enhancer_agent(llm_obj, knowledge_base, user_language),
         file_creation_agent(llm_obj),
         crm_agent(llm_obj, user_email, user_language),
+        knowledge_based_content_agent(llm_obj, knowledge_base, user_language),
     ]
 
 from crewai import Task
@@ -80,26 +73,31 @@ def get_understand_and_execute_task():
     Define and return the task for understanding and executing user prompts,
     with strict enforcement that no mock or dummy data (like example.com) is ever used.
     All recipient data must come directly from the Database Agent.
+    Content creation is done by the unified Knowledge-Based Content Agent.
     """
 
     return Task(
         description=(
             "You manage an AI communication system capable of:\n"
-            "1. 📧 **Email Content**: Draft professional emails using Content Specialist + Content Enhancement Agent.\n"
-            "2. 📤 **Send Email**: Only with explicit request and after passing content to Content Enhancement Agent "
-            "(make sure that the content doesn't contain placeholders).\n"
-            "3. 📱 **WhatsApp Content**: Draft messages using Content Specialist + Content Enhancement Agent.\n"
-            "4. 📲 **Send WhatsApp**: Only with explicit request while passing content through Content Enhancement Agent "
-            "(make sure that the content doesn't contain placeholders).\n"
-            "5. ☎️ **Call Scripts**: Initial script from Content Specialist + improvement via Content Enhancement Agent.\n"
+            "1. 📧 **Email Content**: Draft professional emails using Knowledge-Based Content Agent (no placeholders, enriched with company knowledge).\n"
+            "2. 📤 **Send Email**: Only with explicit request after content is created without placeholders.\n"
+            "3. 📱 **WhatsApp Content**: Draft messages using Knowledge-Based Content Agent (no placeholders, knowledge-enriched).\n"
+            "4. 📲 **Send WhatsApp**: Only with explicit request after content is verified to have no placeholders.\n"
+            "5. ☎️ **Call Scripts**: Create scripts using Knowledge-Based Content Agent (natural language, no templates).\n"
             "6. ☎️ **Make Call**: Only after confirmation.\n"
             "7. 🗂️ **Database Operations (MongoDB)**: Execute CRUD (add, update, delete, query) restricted by user email {user_email}.\n"
             "8. 📄 **Create PDF, Word or Excel Files**: Using File Creator Agent and saving output in 'files/' folder.\n"
             "9. 🏢 **CRM Management (HubSpot, Salesforce, Zoho, ...)**: Role limited only to *extracting or displaying customer data* upon user authorization.\n"
             "10. 🤖 **Siyadah Questions and Inquiries**: Pass them to Siyadah Intelligent Agent.\n\n"
 
+            "⭐ **Knowledge-Based Content Agent Capabilities**:\n"
+            "- Creates content directly from company knowledge base\n"
+            "- NEVER uses placeholders like {{name}}, {{company}}, etc.\n"
+            "- Automatically adapts tone and format for each channel\n"
+            "- Produces immediately sendable content without post-processing\n\n"
+
             "🧠 Context Usage Policy (internal only):\n"
-            "- {context_window} can be used to understand the prompt , get some informations (whatsApp or email content or contacts(phone number or mail address) ) "
+            "- {context_window} can be used to understand the prompt, get information (WhatsApp or email content or contacts) "
             "and complete missing information when needed, without displaying summaries or context references.\n"
             "- Use the context window to understand what the user means.\n"
             "- Explicit user request has priority if it conflicts with context.\n\n"
@@ -108,73 +106,68 @@ def get_understand_and_execute_task():
             "- Answer only what's asked without additions.\n"
             "- Yes/No answered briefly.\n\n"
 
-            "User Request : \n\n {user_prompt}\n\n"
+            "User Request: \n\n {user_prompt}\n\n"
 
-            "📌 Smart Routing:\n"
-            "📧 intent = 'draft email' → Content Specialist + Content Enhancement Agent\n"
-            "📧 intent = 'send email' → (Content Specialist + Content Enhancement Agent if no content already generated in the context window ) "
-            "+ Database Specialist (to fetch recipients) + Email Specialist\n"
-            "📱 intent = 'draft whatsapp' → Content Specialist + Content Enhancement Agent\n"
-            "📱 intent = 'send whatsapp' → (Content Specialist + Content Enhancement Agent if no content already generated in the context window ) "
-            "+ Database Specialist (to fetch recipients) + WhatsApp Specialist\n"
-            "☎️ intent = 'draft call' → Content Specialist + Content Enhancement Agent\n"
-            "☎️ intent = 'make call' → Content Specialist + Content Enhancement Agent + Call Specialist\n"
-            "🗂️ intent = 'database operations' (add/update/delete/query) → Database Specialist\n"
-            "📝 intent = 'create PDF, Word or Excel file' → File Creator Agent\n"
-            "🏢 intent = 'CRM' → Invoke CRM Agent only to extract/display customer data (Only with explicit request).\n"
-            "❓ intent = 'inquiry' or 'help' → Siyadah Intelligent Agent\n"
+            "📌 Smart Routing (Simplified with Combined Agent):\n"
+            "📧 intent = 'draft email' → Knowledge-Based Content Agent\n"
+            "📧 intent = 'send email' → Knowledge-Based Content Agent (if no content in context) + Database Specialist (recipients) + Email Specialist\n"
+            "📱 intent = 'draft whatsapp' → Knowledge-Based Content Agent\n"
+            "📱 intent = 'send whatsapp' → Knowledge-Based Content Agent (if no content in context) + Database Specialist (recipients) + WhatsApp Specialist\n"
+            "☎️ intent = 'draft call' → Knowledge-Based Content Agent\n"
+            "☎️ intent = 'make call' → Knowledge-Based Content Agent + Call Specialist\n"
+            "🗂️ intent = 'database operations' → Database Specialist\n"
+            "📝 intent = 'create file' → File Creator Agent\n"
+            "🏢 intent = 'CRM' → CRM Agent (extract/display only)\n"
+            "❓ intent = 'inquiry/help' → Siyadah Intelligent Agent\n"
             "🔄 multiple intents → Coordinate between agents\n"
-            "❓ unclear intent or missing data → Smart clarification with direct question before execution.\n\n"
+            "❓ unclear intent → Clarification question\n\n"
 
-            "📜 Execution Protocol:\n"
-            "1. Detect user language.\n"
-            "2. Analyze intent using Understanding Agent.\n"
-            "3. Respond in same user language.\n"
-            "4. In *drafting*: Generate content then enhance.\n"
-            "5. In *sending*: Verify message type, channel, and recipients → "
-            "⚠️ CRITICAL: Always query the Database Specialist for real customer emails/phone numbers before sending. "
-            "NEVER use placeholders, dummy data, or example.com.\n"
-            "6. In *database*: All add, update, and delete operations execute on internal DB only.\n"
-            "7. In *files*: Create file via File Creator Agent and save in 'files/' folder.\n"
-            "8. In *CRM management*: Only allow query/extraction.\n"
-            "9. In Siyadah inquiries: Pass to Knowledge Agent.\n"
-            "10. Direct questions: Concise answer.\n"
-            "11. In case of ambiguous intent or missing data: Ask clarification question before any execution.\n"
-            "12. Confirmation only for executive commands.\n"
-            "13. Handle errors with polite and brief language.\n\n"
+            "📜 Execution Protocol (Streamlined):\n"
+            "1. Analyze intent from the user request.\n"
+            "2. Respond in same user language.\n"
+            "3. **Content Creation**: Knowledge-Based Content Agent creates final content in ONE step (no enhancement needed).\n"
+            "4. **Sending Verification**:\n"
+            "   - Confirm content has NO placeholders\n"
+            "   - Query Database Specialist for REAL recipients\n"
+            "   - NEVER use dummy data or example.com\n"
+            "5. **Database**: Execute CRUD on internal DB only.\n"
+            "6. **Files**: Create and save in 'files/' folder.\n"
+            "7. **CRM**: Query/extract only.\n"
+            "8. **Siyadah**: Route to Knowledge Agent.\n"
+            "9. **Direct Questions**: Concise answer.\n"
+            "10. **Missing Data**: Ask for clarification.\n"
+            "11. **Confirmations**: Only for executive commands.\n"
+            "12. **Errors**: Handle politely and briefly.\n\n"
 
-            "🚨 Safety Procedures:\n"
-            "- For ALL send requests (email or WhatsApp): "
-            "recipients MUST come from Database Specialist (customers/clients collection).\n"
-            "- If no real recipients are found, STOP and ask the user. "
-            "Do not fallback to dummy addresses (like client@example.com).\n"
-            "- No sending or execution except with clear and explicit request.\n"
-            "- All CRUD operations occur on internal database only.\n"
-            "- CRM used exclusively for displaying/extracting customer data.\n"
-            "- No action executed with ambiguous intent or missing data except after user clarification.\n"
-            "- Verify email and sending destination.\n"
-            "- Professionalism required in all responses.\n"
-            "- Always verify database operations are restricted by user email.\n"
+            "🚨 Critical Safety Rules:\n"
+            "- **Content Quality**: Knowledge-Based Content Agent ensures NO placeholders ever appear\n"
+            "- **Recipients**: MUST come from Database Specialist (never mocked)\n"
+            "- **Sending**: Only with explicit request and real recipients\n"
+            "- **No Fallbacks**: If recipients not found, STOP and ask user\n"
+            "- **Database Scope**: All operations restricted by user email\n"
+            "- **CRM Limits**: Read-only access for customer data\n"
+            "- **Professional Standards**: All responses must be professional\n"
+            "- **Language Consistency**: Always respond in {user_language}\n"
         ),
         expected_output=(
             "Concise outputs based on intent:\n"
             "✅ Yes/No: Short answer.\n"
-            "✅ Drafting: Text only.\n"
-            "✅ Sending: Brief confirmation with text when needed, showing the REAL recipient(s) from DB.\n"
-            "✅ Database: CRUD result linked to user email with confirmation text.\n"
-            "✅ PDF/Word/Excel files: Confirmation message with file path in 'files/' folder.\n"
-            "✅ CRM Management: Display or extract customer data only upon user authorization.\n"
-            "✅ Siyadah inquiries: Accurate response from knowledge base.\n"
-            "✅ Clarification: Direct question to determine intent or provide missing data.\n"
-            "⚠️ No summaries or additional comments except by user request.\n"
+            "✅ Drafting: Final content only (no placeholders, knowledge-enriched).\n"
+            "✅ Sending: Confirmation with REAL recipients from DB.\n"
+            "✅ Database: CRUD result with user email confirmation.\n"
+            "✅ Files: Confirmation with path in 'files/' folder.\n"
+            "✅ CRM: Customer data display (authorized only).\n"
+            "✅ Siyadah: Knowledge base response.\n"
+            "✅ Clarification: Direct question for missing info.\n"
+            "⚠️ No summaries unless requested.\n"
             "🔣 Response language = {user_language}.\n\n"
-            "**Success Criteria for Digital Tasks:**\n"
-            "- All recipients are fetched from DB, never mocked.\n"
-            "- Confirmation text includes the actual recipient(s).\n"
-            "- When this format is achieved, task is considered complete"
+            "**Success Criteria:**\n"
+            "- Content is placeholder-free and knowledge-based\n"
+            "- Recipients are real (from DB)\n"
+            "- Confirmations include actual recipients\n"
+            "- Task complete when format achieved"
         ),
     )
-
 
 
 
@@ -301,9 +294,9 @@ async def webhook_listener(request: Request):
             if doc:
                 user_email = doc.get("userEmail")
             else:
-                user_email = None
+                return Response("i can't find the user email related to this customer ",status_code=400)
             print(user_email)
-            user_email = "mohamed.ak@d10.sa"
+            
             #TODO getting the context
             print("customer_number")
             print(customer_number)

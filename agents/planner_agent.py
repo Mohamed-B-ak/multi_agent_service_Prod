@@ -1,5 +1,6 @@
+# agents/planner_agent.py
 """
-Planner method for task decomposition
+Planner method for task decomposition with combined Knowledge-Based Content Agent
 """
 
 from crewai import Agent, Task, Crew
@@ -8,6 +9,7 @@ from typing import List, Dict
 def planner(user_prompt: str, context: List[Dict] = None, llm_object = None) -> str:
     """
     Decomposes a user request into subtasks considering conversation context.
+    Now uses the combined Knowledge-Based Content Agent for all content creation.
     
     Args:
         user_prompt: The current user request to decompose
@@ -20,31 +22,31 @@ def planner(user_prompt: str, context: List[Dict] = None, llm_object = None) -> 
     
     # Create the decomposition agent
     decomposer = Agent(
-        role="Task Decomposer with Context Understanding",
-        goal="Understand user requests and break them into ONLY the necessary subtasks - no extras",
-        backstory="""You are an expert at understanding user intent and decomposing ONLY what was requested.
-        
-        CRITICAL RULES:
-        1. ONLY include tasks the user explicitly asked for
-        2. If user says "prepare" or "draft" - DO NOT add sending steps
-        3. If user says "send" - then include sending steps
-        4. If user mentions "them" or references people from context - get their contacts FIRST
-        5. Never add optional or helpful tasks the user didn't request
-        
-        Examples:
-        - "جهزلي حملة ايميلات" = Only prepare/draft, NO sending
-        - "أرسل لهم رسالة" = Get contacts + draft + send
-        - "اكتب ايميل" = Only write, NO sending""",
-        verbose=False,
-        allow_delegation=False,
-        llm=llm_object,
-    )
+    role="Task Decomposer with Context Understanding",
+    goal="Understand user requests and break them into ONLY the necessary subtasks - no extras",
+    backstory="""You are an expert at understanding user intent and decomposing ONLY what was requested.
     
+    CRITICAL RULES:
+    1. ONLY include tasks the user explicitly asked for
+    2. If user says "prepare" or "draft" - DO NOT add sending steps
+    3. If user says "send" - then include sending steps
+    4. If user mentions "them" or references people from context - ALWAYS resolve who 'them' is from the conversation context before proceeding
+    5. Never add optional or helpful tasks the user didn't request
+    
+    Examples:
+    - "جهزلي حملة ايميلات" = Only prepare/draft, NO sending
+    - "أرسل لهم رسالة" (after retrieving customers) = Get contacts + draft + send
+    - "اكتب ايميل" = Only write, NO sending""",
+    verbose=False,
+    allow_delegation=False,
+    llm=llm_object,
+    )
+
     # Format context if provided
     context_str = ""
     if context:
         context_str = f"\n\nConversation Context:\n{context}\n"
-    
+
     # Create the task
     task = Task(
         description=f"""{context_str}
@@ -52,24 +54,25 @@ def planner(user_prompt: str, context: List[Dict] = None, llm_object = None) -> 
         Current Request: '{user_prompt}'
         
         IMPORTANT: Use the conversation context above to understand what the user means.
-        IMPORTANT: if the user message is a simple question and not need a specialist agent , just return the same user input 
+        - If user references pronouns like "them" / "هؤلاء" / "هم", resolve it from context (e.g., last retrieved customers).
+        - If context is missing, assume clarification is needed (but do NOT hallucinate).
+
         STRICT RULES - DO NOT ADD TASKS THE USER DIDN'T REQUEST:
         1. If user says "prepare/جهز" or "draft/اكتب" = ONLY create content, NO sending
         2. If user says "send/أرسل" = Include sending steps
         3. If user says "create campaign/حملة" without "send" = ONLY prepare, NO sending
         4. NEVER add helpful extras like "send" when not requested
-        
+
         Critical Rules for References:
         - If sending to "them" or specific people from context, FIRST retrieve their contact information
         - If preparing content for general use (no specific recipients), NO need to get contacts
-        
+
         Break down the request into subtasks and output a simple numbered list like:
         1. [Action] - [Who should do it]
         2. [Action] - [Who should do it]
-        
+
         Consider these available agents:
-        - Content Agent (drafts messages, emails, scripts)
-        - Knowledge Enhancer Agent (improves and refines content)
+        - Knowledge-Based Content Agent (creates emails, WhatsApp messages, call scripts using company knowledge - NO placeholders ever)
         - Database Agent (MongoDB CRUD operations, gets customer data)
         - Email Agent (sends emails via MailerSend)
         - WhatsApp Agent (sends WhatsApp messages)
@@ -79,11 +82,16 @@ def planner(user_prompt: str, context: List[Dict] = None, llm_object = None) -> 
         - Web Analyser Agent (scrapes and analyzes websites)
         - Code Agent (generates Python code)
         - Siyadah Helper Agent (answers platform questions)
-        
-        IMPORTANT: when creating content using Content Agent, always enhance it using the Knowledge Enhancer Agent""",
+
+        IMPORTANT NOTES:
+        - Content creation is now handled by ONE agent: Knowledge-Based Content Agent
+        - This agent automatically creates content with knowledge base integration
+        - No separate enhancement step needed - content is ready immediately
+        - Content will NEVER have placeholders like {{name}} or dummy data""",
         expected_output="A numbered list of subtasks with responsible agents based on the context and request",
         agent=decomposer
     )
+
     
     # Create and run the crew
     crew = Crew(
@@ -127,7 +135,7 @@ if __name__ == "__main__":
     ]
     
     # Call the planner
-    user_prompt = " أهلا "
+    user_prompt = "أرسل لهم رسالة ترحيب"
     result = planner(user_prompt, context, llm)
     
     print("Decomposed Tasks:")
