@@ -45,7 +45,7 @@ from typing import Optional
 
 class UserPromptRequest(BaseModel):
     prompt: str
-    user_email: Optional[str] = None   
+    user_email: str #Optional[str] = None   
     context: list = []   
 
 def get_workers(user_email, user_language, knowledge_base, context_window=[]):
@@ -105,7 +105,7 @@ def get_understand_and_execute_task():
             "📝 Strict Concision Mode:\n"
             "- Answer only what's asked without additions.\n"
             "- Yes/No answered briefly.\n\n"
-
+            "the user prompt can a simple prompt or question and it can be a list of tasks "
             "User Request: \n\n {user_prompt}\n\n"
 
             "📌 Smart Routing (Simplified with Combined Agent):\n"
@@ -187,7 +187,7 @@ async def process_prompt(request: UserPromptRequest):
     """
     user_prompt = request.prompt
     context_window = request.context
-    user_email = "mohamed.ak@d10.sa"
+    user_email = request.user_email
     llm_obj = get_llm()
     
     try:

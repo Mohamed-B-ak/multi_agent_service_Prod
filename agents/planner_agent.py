@@ -32,7 +32,7 @@ def planner(user_prompt: str, context: List[Dict] = None, llm_object = None) -> 
     3. If user says "send" - then include sending steps
     4. If user mentions "them" or references people from context - ALWAYS resolve who 'them' is from the conversation context before proceeding
     5. Never add optional or helpful tasks the user didn't request
-    
+    6. If the request can't be in sub tasks just return the user prompt 
     Examples:
     - "جهزلي حملة ايميلات" = Only prepare/draft, NO sending
     - "أرسل لهم رسالة" (after retrieving customers) = Get contacts + draft + send
@@ -56,12 +56,14 @@ def planner(user_prompt: str, context: List[Dict] = None, llm_object = None) -> 
         IMPORTANT: Use the conversation context above to understand what the user means.
         - If user references pronouns like "them" / "هؤلاء" / "هم", resolve it from context (e.g., last retrieved customers).
         - If context is missing, assume clarification is needed (but do NOT hallucinate).
+        - If the request can't be in sub tasks just return ther user prompt 
 
         STRICT RULES - DO NOT ADD TASKS THE USER DIDN'T REQUEST:
         1. If user says "prepare/جهز" or "draft/اكتب" = ONLY create content, NO sending
         2. If user says "send/أرسل" = Include sending steps
         3. If user says "create campaign/حملة" without "send" = ONLY prepare, NO sending
         4. NEVER add helpful extras like "send" when not requested
+        5. If the request can't be in sub tasks just return the user prompt 
 
         Critical Rules for References:
         - If sending to "them" or specific people from context, FIRST retrieve their contact information
@@ -87,7 +89,7 @@ def planner(user_prompt: str, context: List[Dict] = None, llm_object = None) -> 
         - Content creation is now handled by ONE agent: Knowledge-Based Content Agent
         - This agent automatically creates content with knowledge base integration
         - No separate enhancement step needed - content is ready immediately
-        - Content will NEVER have placeholders like {{name}} or dummy data""",
+        - Content will NEVER have placeholders like [name] or dummy data""",
         expected_output="A numbered list of subtasks with responsible agents based on the context and request",
         agent=decomposer
     )
