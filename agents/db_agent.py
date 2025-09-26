@@ -52,6 +52,7 @@ def db_agent(llm_obj, user_email, user_language="en") -> Agent:
         "\nPick the most relevant collection for the user’s request. "
         "Do NOT invent collection names — always choose from the above."
         f"All answers must be strictly in {user_language}, concise, accurate, "
+        "the key source should be internal "
     )
 
     backstory_text = (
@@ -64,6 +65,7 @@ def db_agent(llm_obj, user_email, user_language="en") -> Agent:
         "Always pick the best match for the request (e.g., if the user asks about 'clients' "
         "but only 'customers' exists, use 'customers')."
         f"All answers must be strictly in {user_language}, concise, accurate, "
+        "the key source should be internal "
     )
 
     return Agent(

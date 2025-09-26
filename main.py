@@ -45,7 +45,7 @@ from typing import Optional
 
 class UserPromptRequest(BaseModel):
     prompt: str
-    user_email: str  #Optional[str] = None   
+    user_email: Optional[str] = None   
     context: list = []   
 
 def get_workers(user_email, user_language, knowledge_base, context_window=[]):
@@ -60,7 +60,6 @@ def get_workers(user_email, user_language, knowledge_base, context_window=[]):
         db_agent(llm_obj, user_email, user_language),
         siyadah_helper_agent(llm_obj, user_language),
         file_creation_agent(llm_obj),
-        crm_agent(llm_obj, user_email, user_language),
         knowledge_based_content_agent(llm_obj, knowledge_base, user_language),
     ]
 
@@ -85,10 +84,9 @@ def get_understand_and_execute_task():
             "4. 📲 **Send WhatsApp**: Only with explicit request after content is verified to have no placeholders.\n"
             "5. ☎️ **Call Scripts**: Create scripts using Knowledge-Based Content Agent (natural language, no templates).\n"
             "6. ☎️ **Make Call**: Only after confirmation.\n"
-            "7. 🗂️ **Database Operations (MongoDB)**: Execute CRUD (add, update, delete, query) restricted by user email {user_email}.\n"
+            "7. 🗂️ **Database Operations (MongoDB)**: Execute CRUD (add, update, delete, query) restricted by user email {user_email} using th db_agent .\n"
             "8. 📄 **Create PDF, Word or Excel Files**: Using File Creator Agent and saving output in 'files/' folder.\n"
-            "9. 🏢 **CRM Management (HubSpot, Salesforce, Zoho, ...)**: Role limited only to *extracting or displaying customer data* upon user authorization.\n"
-            "10. 🤖 **Siyadah Questions and Inquiries**: Pass them to Siyadah Intelligent Agent.\n\n"
+            "9. 🤖 **Siyadah Questions and Inquiries**: Pass them to Siyadah Intelligent Agent.\n\n"
 
             "⭐ **Knowledge-Based Content Agent Capabilities**:\n"
             "- Creates content directly from company knowledge base\n"
@@ -117,7 +115,6 @@ def get_understand_and_execute_task():
             "☎️ intent = 'make call' → Knowledge-Based Content Agent + Call Specialist\n"
             "🗂️ intent = 'database operations' → Database Specialist\n"
             "📝 intent = 'create file' → File Creator Agent\n"
-            "🏢 intent = 'CRM' → CRM Agent (extract/display only)\n"
             "❓ intent = 'inquiry/help' → Siyadah Intelligent Agent\n"
             "🔄 multiple intents → Coordinate between agents\n"
             "❓ unclear intent → Clarification question\n\n"
@@ -132,12 +129,11 @@ def get_understand_and_execute_task():
             "   - NEVER use dummy data or example.com\n"
             "5. **Database**: Execute CRUD on internal DB only.\n"
             "6. **Files**: Create and save in 'files/' folder.\n"
-            "7. **CRM**: Query/extract only.\n"
-            "8. **Siyadah**: Route to Knowledge Agent.\n"
-            "9. **Direct Questions**: Concise answer.\n"
-            "10. **Missing Data**: Ask for clarification.\n"
-            "11. **Confirmations**: Only for executive commands.\n"
-            "12. **Errors**: Handle politely and briefly.\n\n"
+            "7. **Siyadah**: Route to Knowledge Agent.\n"
+            "8. **Direct Questions**: Concise answer.\n"
+            "9. **Missing Data**: Ask for clarification.\n"
+            "10. **Confirmations**: Only for executive commands.\n"
+            "11. **Errors**: Handle politely and briefly.\n\n"
 
             "🚨 Critical Safety Rules:\n"
             "- **Content Quality**: Knowledge-Based Content Agent ensures NO placeholders ever appear\n"
@@ -145,7 +141,6 @@ def get_understand_and_execute_task():
             "- **Sending**: Only with explicit request and real recipients\n"
             "- **No Fallbacks**: If recipients not found, STOP and ask user\n"
             "- **Database Scope**: All operations restricted by user email\n"
-            "- **CRM Limits**: Read-only access for customer data\n"
             "- **Professional Standards**: All responses must be professional\n"
             "- **Language Consistency**: Always respond in {user_language}\n"
         ),
@@ -156,7 +151,6 @@ def get_understand_and_execute_task():
             "✅ Sending: Confirmation with REAL recipients from DB.\n"
             "✅ Database: CRUD result with user email confirmation.\n"
             "✅ Files: Confirmation with path in 'files/' folder.\n"
-            "✅ CRM: Customer data display (authorized only).\n"
             "✅ Siyadah: Knowledge base response.\n"
             "✅ Clarification: Direct question for missing info.\n"
             "⚠️ No summaries unless requested.\n"
@@ -187,7 +181,7 @@ async def process_prompt(request: UserPromptRequest):
     """
     user_prompt = request.prompt
     context_window = request.context
-    user_email = request.user_email
+    user_email = "mohamed.ak@d10.sa"
     llm_obj = get_llm()
     
     from utils import save_message, get_messages

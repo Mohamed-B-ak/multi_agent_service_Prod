@@ -1,6 +1,6 @@
 # tools/hubspot_tools.py
 
-import os
+""" import os
 from hubspot import HubSpot
 from crewai.tools import BaseTool
 from pymongo import MongoClient
@@ -13,7 +13,7 @@ class HubSpotContactsTool(BaseTool):
     user_email: str
 
     def _run(self, limit: int = 10) -> str:
-        """Fetch contacts from HubSpot CRM."""
+        #Fetch contacts from HubSpot CRM.
 
         try:
             # Connect to MongoDB
@@ -66,3 +66,60 @@ class HubSpotContactsTool(BaseTool):
 
         except Exception as e:
             return f"❌ Error fetching contacts from HubSpot: {str(e)}"
+ """
+
+
+# tools/crm_contacts_tool.py
+from dotenv import load_dotenv
+load_dotenv()
+import os
+import requests
+from crewai.tools import BaseTool
+from pymongo import MongoClient
+
+class HubSpotContactsTool(BaseTool):
+    name: str = "CRM Contacts Tool"
+    description: str = (
+        "Fetches contacts from any connected CRM (HubSpot, Microsoft Dynamics, Odoo, Google Contacts, etc.) "
+        "using ApiDeck Unified API. Returns names, emails, and phone numbers."
+    )
+
+    # ✅ user email injected per agent
+    user_email: str
+
+    def _run(self, service_id: str = "hubspot", limit: int = 10) -> str:
+        """Fetch contacts from the selected CRM via ApiDeck."""
+
+        try:
+            # Call ApiDeck Unified CRM API
+            url = "https://unify.apideck.com/crm/contacts"
+            headers = {
+                "Authorization": f"Bearer {os.getenv('APIDECK_API_KEY')}",
+                "x-apideck-app-id": os.getenv("APIDECK_APP_ID"),
+                "x-apideck-consumer-id": self.user_email,
+                "x-apideck-service-id": service_id,
+            }
+
+            response = requests.get(url, headers=headers, params={"limit": limit})
+
+            if response.status_code != 200:
+                return f"❌ Error from {service_id}: {response.status_code} {response.text}"
+
+            data = response.json()
+            contacts = data.get("data", [])
+
+            if not contacts:
+                return f"⚠️ No contacts found in {service_id}."
+
+            # Build summaries
+            results = []
+            for c in contacts:
+                name = c.get("name", "Unknown")
+                email = c.get("emails", [{}])[0].get("email", "")
+                phone = c.get("phone_numbers", [{}])[0].get("number", "")
+                results.append(f"{name} - {email} - 📞 {phone}")
+
+            return response.json()
+
+        except Exception as e:
+            return f"❌ Error fetching contacts from {service_id}: {str(e)}"
