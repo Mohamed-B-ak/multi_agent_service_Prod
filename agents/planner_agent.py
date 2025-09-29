@@ -82,7 +82,6 @@ def planner(user_prompt: str, context: List[Dict] = None, llm_object = None) -> 
         - Caller Agent (makes phone calls with scripts)
         - File Creation Agent (creates PDF/Word/Excel files)
         - Web Analyser Agent (scrapes and analyzes websites)
-        - Code Agent (generates Python code)
         - Siyadah Helper Agent (answers platform questions)
 
         IMPORTANT NOTES:

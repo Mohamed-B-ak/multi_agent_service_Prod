@@ -17,10 +17,13 @@ from agents.file_creation_agent import file_creation_agent
 from agents.crm_agent import crm_agent
 from agents.planner_agent import planner
 from agents.knowledge_based_content_agent import knowledge_based_content_agent
+from agents.sales_agent import sales_agent
+from agents.marketing_agent import marketing_agent
 from fastapi.responses import JSONResponse
 from fastapi import Request, Response
 from datetime import datetime
 import warnings
+import redis 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 FOLDER_PATH = os.path.join(os.getcwd(), "files")  
@@ -28,6 +31,10 @@ os.makedirs(FOLDER_PATH, exist_ok=True)
 
 
 app = FastAPI()
+
+mongo_client = None
+db = None
+redis_client= None
 
 
 def get_llm():
@@ -45,7 +52,7 @@ from typing import Optional
 
 class UserPromptRequest(BaseModel):
     prompt: str
-    user_email: str #Optional[str] = None   
+    user_email: Optional[str] = None   
     context: list = []   
 
 def get_workers(user_email, user_language, knowledge_base, context_window=[]):
@@ -54,122 +61,155 @@ def get_workers(user_email, user_language, knowledge_base, context_window=[]):
     """
     llm_obj = get_llm()
     return [
-        email_agent(llm_obj, user_email, user_language),
-        whatsapp_agent(llm_obj, user_email, user_language),
-        caller_agent(llm_obj, user_language),
-        db_agent(llm_obj, user_email, user_language),
+        marketing_agent(llm_obj, user_language),
+        sales_agent(llm_obj, user_language),
         siyadah_helper_agent(llm_obj, user_language),
-        file_creation_agent(llm_obj),
-        knowledge_based_content_agent(llm_obj, knowledge_base, user_language),
     ]
 
 from crewai import Task
 
 from crewai import Task
-
 def get_understand_and_execute_task():
     """
     Define and return the task for understanding and executing user prompts,
-    with strict enforcement that no mock or dummy data (like example.com) is ever used.
-    All recipient data must come directly from the Database Agent.
-    Content creation is done by the unified Knowledge-Based Content Agent.
+    optimized for Marketing, Sales, and Siyadah Helper agents only.
     """
 
     return Task(
         description=(
-            "You manage an AI communication system capable of:\n"
-            "1. 📧 **Email Content**: Draft professional emails using Knowledge-Based Content Agent (no placeholders, enriched with company knowledge).\n"
-            "2. 📤 **Send Email**: Only with explicit request after content is created without placeholders.\n"
-            "3. 📱 **WhatsApp Content**: Draft messages using Knowledge-Based Content Agent (no placeholders, knowledge-enriched).\n"
-            "4. 📲 **Send WhatsApp**: Only with explicit request after content is verified to have no placeholders.\n"
-            "5. ☎️ **Call Scripts**: Create scripts using Knowledge-Based Content Agent (natural language, no templates).\n"
-            "6. ☎️ **Make Call**: Only after confirmation.\n"
-            "7. 🗂️ **Database Operations (MongoDB)**: Execute CRUD (add, update, delete, query) restricted by user email {user_email} using th db_agent .\n"
-            "8. 📄 **Create PDF, Word or Excel Files**: Using File Creator Agent and saving output in 'files/' folder.\n"
-            "9. 🤖 **Siyadah Questions and Inquiries**: Pass them to Siyadah Intelligent Agent.\n\n"
-
-            "⭐ **Knowledge-Based Content Agent Capabilities**:\n"
-            "- Creates content directly from company knowledge base\n"
-            "- NEVER uses placeholders like name, company, etc.\n"
-            "- Automatically adapts tone and format for each channel\n"
-            "- Produces immediately sendable content without post-processing\n\n"
-
-            "🧠 Context Usage Policy (internal only):\n"
-            "- {context_window} can be used to understand the prompt, get information (WhatsApp or email content or contacts) "
-            "and complete missing information when needed, without displaying summaries or context references.\n"
-            "- Use the context window to understand what the user means.\n"
-            "- Explicit user request has priority if it conflicts with context.\n\n"
-
-            "📝 Strict Concision Mode:\n"
-            "- Answer only what's asked without additions.\n"
-            "- Yes/No answered briefly.\n\n"
-            "the user prompt can a simple prompt or question and it can be a list of tasks "
+            "You manage an AI system with THREE specialized agents capable of:\n\n"
+            
+            "🎯 **MARKETING AGENT Capabilities**:\n"
+            "1. 📊 **Campaign Management**: Create and execute multi-channel marketing campaigns\n"
+            "2. 📧 **Email Marketing**: Draft and send marketing emails via MailerSend\n"
+            "3. 📱 **WhatsApp Campaigns**: Create and send WhatsApp marketing messages\n"
+            "4. 🗂️ **Customer Segmentation**: Query and segment customers from MongoDB\n"
+            "5. 📈 **Analytics**: Analyze campaign performance and customer engagement\n"
+            "6. 🎨 **Content Creation**: Generate marketing content enriched with knowledge base\n"
+            "7. 🔍 **Database Operations**: CRUD operations on MongoDB (customers, campaigns, etc.)\n\n"
+            
+            "💼 **SALES AGENT Capabilities**:\n"
+            "1. 🤝 **Lead Management**: Track and nurture leads through the sales funnel\n"
+            "2. 📞 **Sales Outreach**: Create personalized sales pitches and follow-ups\n"
+            "3. 💰 **Deal Tracking**: Monitor and update sales opportunities in database\n"
+            "4. 📊 **CRM Operations**: Manage customer relationships and sales data\n"
+            "5. 📧 **Sales Emails**: Send targeted sales emails with product information\n"
+            "6. 📱 **WhatsApp Sales**: Direct sales messaging to prospects\n"
+            "7. 🗂️ **Database Management**: Access and update sales records in MongoDB\n\n"
+            
+            "❓ **SIYADAH HELPER AGENT Capabilities**:\n"
+            "1. 📚 **Platform Knowledge**: Answer questions about Siyadah platform\n"
+            "2. 🔧 **Technical Support**: Help with platform features and troubleshooting\n"
+            "3. 📖 **User Guidance**: Provide instructions on how to use the system\n"
+            "4. 💡 **Best Practices**: Share tips for effective platform usage\n"
+            "5. 🎓 **Training**: Explain agent capabilities and workflows\n\n"
+            
+            "🧠 **Context Usage Policy**:\n"
+            "- {context_window} helps understand user intent and previous interactions\n"
+            "- Use context to maintain conversation continuity\n"
+            "- User's explicit request overrides context if conflicting\n\n"
+            
+            "📝 **Communication Principles**:\n"
+            "- Respond in {user_language} consistently\n"
+            "- Keep responses concise and action-oriented\n"
+            "- No placeholders or dummy data - use real information only\n\n"
+            
             "User Request: \n\n {user_prompt}\n\n"
-
-            "📌 Smart Routing (Simplified with Combined Agent):\n"
-            "📧 intent = 'draft email' → Knowledge-Based Content Agent\n"
-            "📧 intent = 'send email' → Knowledge-Based Content Agent (if no content in context) + Database Specialist (recipients) + Email Specialist\n"
-            "📱 intent = 'draft whatsapp' → Knowledge-Based Content Agent\n"
-            "📱 intent = 'send whatsapp' → Knowledge-Based Content Agent (if no content in context) + Database Specialist (recipients) + WhatsApp Specialist\n"
-            "☎️ intent = 'draft call' → Knowledge-Based Content Agent\n"
-            "☎️ intent = 'make call' → Knowledge-Based Content Agent + Call Specialist\n"
-            "🗂️ intent = 'database operations' → Database Specialist\n"
-            "📝 intent = 'create file' → File Creator Agent\n"
-            "❓ intent = 'inquiry/help' → Siyadah Intelligent Agent\n"
-            "🔄 multiple intents → Coordinate between agents\n"
-            "❓ unclear intent → Clarification question\n\n"
-
-            "📜 Execution Protocol (Streamlined):\n"
-            "1. Analyze intent from the user request.\n"
-            "2. Respond in same user language.\n"
-            "3. **Content Creation**: Knowledge-Based Content Agent creates final content in ONE step (no enhancement needed).\n"
-            "4. **Sending Verification**:\n"
-            "   - Confirm content has NO placeholders\n"
-            "   - Query Database Specialist for REAL recipients\n"
-            "   - NEVER use dummy data or example.com\n"
-            "5. **Database**: Execute CRUD on internal DB only.\n"
-            "6. **Files**: Create and save in 'files/' folder.\n"
-            "7. **Siyadah**: Route to Knowledge Agent.\n"
-            "8. **Direct Questions**: Concise answer.\n"
-            "9. **Missing Data**: Ask for clarification.\n"
-            "10. **Confirmations**: Only for executive commands.\n"
-            "11. **Errors**: Handle politely and briefly.\n\n"
-
-            "🚨 Critical Safety Rules:\n"
-            "- **Content Quality**: Knowledge-Based Content Agent ensures NO placeholders ever appear\n"
-            "- **Recipients**: MUST come from Database Specialist (never mocked)\n"
-            "- **Sending**: Only with explicit request and real recipients\n"
-            "- **No Fallbacks**: If recipients not found, STOP and ask user\n"
-            "- **Database Scope**: All operations restricted by user email\n"
-            "- **Professional Standards**: All responses must be professional\n"
+            
+            "📌 **Smart Agent Routing**:\n"
+            "🎯 'marketing campaign', 'email blast', 'customer segment' → **Marketing Agent**\n"
+            "💼 'sales', 'leads', 'deals', 'prospects', 'close' → **Sales Agent**\n"
+            "❓ 'how to', 'help', 'what is Siyadah', 'platform question' → **Siyadah Helper Agent**\n"
+            "🔄 Multiple needs → Coordinate between relevant agents\n"
+            "❓ Unclear intent → Ask for clarification\n\n"
+            
+            "📜 **Execution Protocol**:\n"
+            "1. **Intent Analysis**: Determine which agent(s) should handle the request\n"
+            "2. **Language Detection**: Ensure response matches user's language\n"
+            "3. **Context Integration**: Use previous conversation for continuity\n"
+            "4. **Agent Selection**:\n"
+            "   - Marketing tasks → Marketing Agent\n"
+            "   - Sales tasks → Sales Agent\n"
+            "   - Platform questions → Siyadah Helper Agent\n"
+            "   - Complex tasks → Multiple agents in sequence\n"
+            "5. **Data Validation**:\n"
+            "   - All database queries scoped by {user_email}\n"
+            "   - Real customer data only (no mocks)\n"
+            "   - Verify credentials before sending messages\n"
+            "6. **Quality Control**:\n"
+            "   - No placeholders in content\n"
+            "   - Professional tone maintained\n"
+            "   - Clear, actionable responses\n"
+            "7. **Error Handling**:\n"
+            "   - Missing data → Request clarification\n"
+            "   - Failed operations → Clear error message\n"
+            "   - No credentials → Inform user to add them\n\n"
+            
+            "⚡ **Performance Optimizations**:\n"
+            "- Both Marketing and Sales agents have MongoDB tools - use efficiently\n"
+            "- Both can send WhatsApp/Email - choose based on context\n"
+            "- Share customer data between agents to avoid duplicate queries\n"
+            "- Cache frequently accessed data\n\n"
+            
+            
+            "🚨 **Critical Rules**:\n"
+            "- **Data Security**: All operations restricted to user's data only\n"
+            "- **Real Data Only**: Never use example.com or dummy numbers\n"
+            "- **Credential Check**: Verify API keys exist before sending\n"
+            "- **Rate Limiting**: Respect API limits for email/WhatsApp\n"
+            "- **Professional Standards**: Maintain business communication quality\n"
             "- **Language Consistency**: Always respond in {user_language}\n"
         ),
         expected_output=(
-            "Concise outputs based on intent:\n"
-            "✅ Yes/No: Short answer.\n"
-            "✅ Drafting: Final content only (no placeholders, knowledge-enriched).\n"
-            "✅ Sending: Confirmation with REAL recipients from DB.\n"
-            "✅ Database: CRUD result with user email confirmation.\n"
-            "✅ Files: Confirmation with path in 'files/' folder.\n"
-            "✅ Siyadah: Knowledge base response.\n"
-            "✅ Clarification: Direct question for missing info.\n"
-            "⚠️ No summaries unless requested.\n"
-            "🔣 Response language = {user_language}.\n\n"
-            "**Success Criteria:**\n"
-            "- Content is placeholder-free and knowledge-based\n"
-            "- Recipients are real (from DB)\n"
-            "- Confirmations include actual recipients\n"
-            "- Task complete when format achieved"
+            "Expected outputs by agent type:\n\n"
+            "🎯 **Marketing Agent Outputs**:\n"
+            "✅ Campaign created with [X] recipients targeted\n"
+            "✅ Email sent to [X] customers about [campaign]\n"
+            "✅ WhatsApp blast queued for [X] contacts\n"
+            "✅ Customer segment: [X] customers match criteria\n"
+            "✅ Content drafted: [actual marketing content]\n\n"
+            
+            "💼 **Sales Agent Outputs**:\n"
+            "✅ Lead added/updated: [customer name] - [status]\n"
+            "✅ Sales email sent to [prospect name] at [email]\n"
+            "✅ [X] prospects identified for [product/service]\n"
+            "✅ Deal updated: [deal name] moved to [stage]\n"
+            "✅ Follow-up scheduled for [X] leads\n\n"
+            
+            "❓ **Siyadah Helper Outputs**:\n"
+            "✅ Clear explanation of requested feature\n"
+            "✅ Step-by-step instructions provided\n"
+            "✅ Best practice recommendation given\n"
+            "✅ Platform capability clarified\n\n"
+            
+            "📊 **General Format Rules**:\n"
+            "🔣 Response language = {user_language}\n"
+            "📝 Concise, actionable responses\n"
+            "🎯 Include specific numbers and names\n"
+            "⚠️ No summaries unless requested\n"
+            "✔️ Confirm completion with details\n"
+            "➕ Always end with a context-aware recommendation question\n"
         ),
     )
-
-
-
 def detect_language(text: str) -> str:
     langid.set_languages(['fr', 'en', 'ar'])
     lang, _ = langid.classify(text)
     print(lang)
     return lang  
+
+@app.on_event("startup")
+async def startup_event():
+    global mongo_client, db, redis_client
+    mongo_client = MongoClient(os.getenv("MONGO_DB_URI"))
+    db = mongo_client[os.getenv("DB_NAME")]
+   
+    redis_client = redis.from_url(
+        os.getenv("REDIS_URL"),
+        decode_responses=True
+    )
+
+    print("success")
+
 
 @app.post("/process-prompt/")
 async def process_prompt(request: UserPromptRequest):
@@ -179,19 +219,20 @@ async def process_prompt(request: UserPromptRequest):
     2. If a file exists in ./files → include it (base64) in the response.
     3. Deletes the file after including it.
     """
+    start = time.time()
     user_prompt = request.prompt
     context_window = request.context
-    user_email = request.user_email
+    user_email = "mohamed.ak@d10.sa"
     llm_obj = get_llm()
     
     from utils import save_message, get_messages
-     # Save user input
+    # Save user input
 
-    save_message(user_email, "user", user_prompt)
+    save_message(redis_client, user_email, "user", user_prompt)
 
     # Get chat history
 
-    redis_context_window = get_messages(user_email, limit=10)
+    redis_context_window = get_messages(redis_client, user_email, limit=10)
 
     print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     print(redis_context_window)
@@ -204,20 +245,25 @@ async def process_prompt(request: UserPromptRequest):
     mgr = manager_agent(llm_obj, user_language)
 
     try:
-        client = MongoClient(os.getenv("MONGO_DB_URI"))
-        db = client[os.getenv("DB_NAME")]
+        #client = MongoClient(os.getenv("MONGO_DB_URI"))
+        #db = client[os.getenv("DB_NAME")]
         collection = db["knowledgebases"]
         user_doc = collection.find_one({"userId": user_email})
         knowledge_base = user_doc['extractedContent']
     except:
         knowledge_base = ""
-
+    execution_time = time.time() - start
+    print("-----------------------")
+    print(execution_time)
+    print("-----------------------")
     workers = get_workers(user_email, user_language, knowledge_base, str(redis_context_window))
     understand_and_execute = get_understand_and_execute_task()
 
     tasks = planner(user_prompt, str(redis_context_window), llm_obj)
     print(tasks)
     print(type(tasks))
+    
+
     crew = Crew(
         agents=workers,
         tasks=[understand_and_execute],
@@ -243,7 +289,7 @@ async def process_prompt(request: UserPromptRequest):
             final_output = str(final)
         # Save system response
         try : 
-            save_message(user_email, "system", final_output)
+            save_message(redis_client, user_email, "system", final_output)
         except:
             print("Sorry, i can't save the system response")
         execution_time = time.time() - start
@@ -300,8 +346,8 @@ async def webhook_listener(request: Request):
             session = payload.get("session")
             time = datetime.utcnow(),
             #TODO save the comming message    
-            client = MongoClient(os.getenv("MONGO_DB_URI"))
-            db = client[os.getenv("DB_NAME")]
+            #client = MongoClient(os.getenv("MONGO_DB_URI"))
+            #db = client[os.getenv("DB_NAME")]
             usercredentials = db["usercredentials"]
             doc = usercredentials.find_one({"whatsapp.sessionName": session})
             if doc:

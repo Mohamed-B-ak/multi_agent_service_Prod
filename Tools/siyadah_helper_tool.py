@@ -16,43 +16,87 @@ class SiyadahHelperTool(BaseTool):
 
         # 2️⃣ Knowledge base about Siyadah
         knowledge = """
-        # Siyadah Platform - User Guide
-        ## 1. What is Siyadah?
-        Siyadah is a multi-agent AI platform designed to automate business workflows. 
-        It allows users to:
-        - Compose and send emails.
-        - Send WhatsApp messages.
-        - Make scripted calls.
-        - Generate Python code.
-        - Perform CRUD operations on databases.
-        ## 2. How to use the platform
-        ### 2.1 Sending Emails
-        - Use the email agent in the chat interface.
-        - Start by typing your request, e.g., "Send an email to John about the report."
-        - The agent can compose the email for you or send it directly if you confirm.
-        ### 2.2 Sending WhatsApp Messages
-        - Use the WhatsApp agent.
-        - Type your message request, e.g., "Send a WhatsApp to Sarah."
-        - The agent can draft or send messages after confirmation.
-        ### 2.3 Creating Tasks
-        - You can create a new task in the chat interface or via API.
-        - Provide a clear description and any necessary details.
-        ### 2.4 Generating Python Code
-        - Use the code agent to generate clean Python scripts.
-        - Example: "Create a Python script to fetch sales data from MongoDB."
-        ### 2.5 Database Operations
-        - The database agent can perform CRUD operations on MongoDB.
-        - Example commands: "List all customers", "Update the phone number for Ahmed."
-        ## 3. Best Practices
-        - Always confirm sending actions (email, WhatsApp, calls) before execution.
-        - Provide clear instructions for code generation.
-        - Use context if needed to clarify ambiguous tasks.
-        ## 4. Support
-        - If you encounter issues, contact support at: support@siyadah-ai.com
-        - Check the online documentation for more detailed guides.
-        ## 5. Notes
-        - The system supports multiple languages and can respond in the user’s preferred language.
-        - Always phrase your prompts clearly for best results.
+                    ** Platform Features & Guide **
+                    1. Creating an Account
+                    New users can easily get started:
+                    Visit the homepage and click Login.
+                    Then click Create Account.
+                    Fill in all the required fields (e.g., name, email, password).
+                    Click Create Account to complete registration.
+                    2. Logging In
+                    Returning users can access their account:
+                    Click the Login button on the homepage.
+                    Enter your email and password.
+                    Click Login to enter your dashboard.
+                    3. Dashboard Overview
+                    After logging in, you are taken to the Dashboard—the central hub for all features.
+                    3.1 Smart Chat – :brain: AI-Powered Operations
+                    The Smart Chat is one of the most powerful features in Siyadah. It acts as an intelligent assistant where users can type commands or queries and the chatbot will perform actions across the platform.
+                    Key Capabilities:
+                    :mag: Data Operations:
+                    Ask the chatbot to retrieve structured data such as:
+                    All users with emails and phone numbers
+                    Specific user records by name, email, or filters
+                    Export, summarize, or analyze this data in chat
+                    :busts_in_silhouette: User Management via Chat:
+                    Add new users directly by typing a request (e.g., "Add user John with email john@example.com and phone number...")
+                    Modify or delete users using natural language commands
+                    Get summaries like “How many active users do we have?”
+                    :loudspeaker: Campaign Automation:
+                    Launch email campaigns by simply instructing the bot (e.g., "Send email to all users about product update")
+                    Send WhatsApp campaigns to one or multiple users (as long as WhatsApp integration is set up in settings)
+                    Manage templates and campaigns directly through conversation
+                    :frame_with_picture: File and Image Handling:
+                    Upload images or files from your local computer during chat
+                    Ask the chatbot to analyze or use uploaded content
+                    Use files as part of user onboarding or knowledge training
+                    :gear: Advanced Operations:
+                    Set up automations like reminders, follow-ups, or trigger events
+                    Train the bot on new company knowledge or update knowledge base via chat
+                    Interact with APIs or integrated tools through conversational commands
+                    3.2 Settings – :gear: Personalization & Integration
+                    Customize how your platform works for you.
+                    Profile Management:
+                    Edit personal and business info:
+                    Name
+                    Company Name
+                    Phone Number
+                    Email
+                    Place of Residence
+                    Notification Settings:
+                    Enable/disable alerts for:
+                    WhatsApp
+                    Email
+                    Missed Calls
+                    External Integrations:
+                    Connect with third-party tools:
+                    Set Email sender and its API Key
+                    Configure WhatsApp API
+                    Add your Webhook URL:
+                    https://345e154d-7a73-4a6b-a1f4-9e25aeb6225c-00-2he07kh0y0uhg.janeway.replit.dev/api/whatsapp/webhook
+                    Set up HubSpot integration with your API Key for CRM sync
+                    4. Customer Management – :bust_in_silhouette: User Database Control
+                    Access and manage all your customer data in one place.
+                    Add New Users:
+                    Click the Add User button
+                    Enter user details and click Add
+                    View & Edit Users:
+                    Browse the list of all users
+                    Modify any user’s info (e.g., phone number, email)
+                    Delete Users:
+                    Quickly remove any user from the system with a click
+                    5. Knowledge Base – :books: Smart Document Research
+                    steps: 
+                    1 - go to dashboard
+                    2 - go to knowledge base 
+                    3 - upload your file 
+                    4 - save it 
+                    Train your AI and retrieve knowledge from documents:
+                    Upload a PDF file
+                    The system will index and allow you to:
+                    Search content
+                    Ask the chatbot to extract answers
+                    Use the content for customer support or onboarding
         """
 
         # 4️⃣ Construct the messages for the chat API

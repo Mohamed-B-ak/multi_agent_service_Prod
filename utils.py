@@ -44,25 +44,16 @@ print(get_last_messages("+21653844063"))
 
 import json
 
-def save_message(user_email: str, role: str, content: str, limit: int = 20):
-    import redis, os
+def save_message(redis_client, user_email: str, role: str, content: str, limit: int = 20):
 
-    redis_client = redis.from_url(
-        os.getenv("REDIS_URL"),
-        decode_responses=True
-    )
     key = f"chat:{user_email}"
     entry = {"role": role, "content": content}
     redis_client.rpush(key, json.dumps(entry))   # push new message
     redis_client.ltrim(key, -limit, -1)          # keep last N messages
 
-def get_messages(user_email: str, limit: int = 20):
-    import redis, os
+def get_messages(redis_client, user_email: str, limit: int = 20):
 
-    redis_client = redis.from_url(
-        os.getenv("REDIS_URL"),
-        decode_responses=True
-    )
+    
     key = f"chat:{user_email}"
     messages = redis_client.lrange(key, -limit, -1)
     return [json.loads(m) for m in messages]
