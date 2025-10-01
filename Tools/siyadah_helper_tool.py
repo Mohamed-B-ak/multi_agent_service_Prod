@@ -108,7 +108,7 @@ class SiyadahHelperTool(BaseTool):
         # 5️⃣ Call the OpenAI ChatCompletion API
         try:
             response = openai.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-3.5-turbo",
                 messages=messages,
                 temperature=0.3,
                 max_tokens=500

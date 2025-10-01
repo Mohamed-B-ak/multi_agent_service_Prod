@@ -10,30 +10,16 @@ from datetime import datetime
 from dataclasses import dataclass, asdict
 import os
 import asyncio
+import redis
 from dotenv import load_dotenv
-import os
 
 load_dotenv()
-
-# تحقق من وجود المكتبات الاختيارية
-try:
-    import redis
-    REDIS_AVAILABLE = True
-except ImportError:
-    REDIS_AVAILABLE = False
-    print("⚠️ Redis not available - using in-memory cache")
-
-try:
-    from pymongo import MongoClient
-    MONGO_AVAILABLE = True
-except ImportError:
-    MONGO_AVAILABLE = False
-    print("⚠️ MongoDB not available - using in-memory storage")
 
 # Configuration
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 MONGO_URI = os.getenv("MONGO_DB_URI", "mongodb://localhost:27017")
+
 
 @dataclass
 class IntelligenceResponse:
@@ -56,127 +42,115 @@ class IntelligenceResponse:
     action_type: str
     direct_response: Optional[str]
     confirmation_question: Optional[str]
+    semantic_rewrite: Optional[str]
+    lang: Optional[str]
     processing_time: float
     method_used: str
     total_cost: float
+
 
 class SimplifiedIntelligenceLayer:
     """
     طبقة ذكاء مبسطة تستخدم OpenAI لكل شيء
     """
-    
+
     def __init__(self):
         # OpenAI Client
         self.client = OpenAI(api_key=OPENAI_API_KEY)
-        
+
         # Storage connections
         self._init_storage()
-        
+
         # Agent capabilities
         self.agent_capabilities = {
             "CustomerServiceAgent": {
                 "skills": ["problem solving", "empathy", "escalation"],
-                "tools" : ["Database operations (CRUD)", "WhatsApp sender", "Email sender"],
+                "tools": ["Database operations (CRUD)", "WhatsApp sender", "Email sender"],
                 "intents": ["complaint", "help", "support"],
-                "languages": ["ar", "en"]
+                "languages": ["ar", "en"],
             },
             "SalesAgent": {
                 "skills": ["negotiation", "product knowledge", "closing deals"],
-                "tools" : ["Database operations (CRUD)", "WhatsApp sender", "Email sender"],
+                "tools": ["Database operations (CRUD)", "WhatsApp sender", "Email sender"],
                 "intents": ["purchase", "pricing", "quotes"],
-                "languages": ["ar", "en"]
+                "languages": ["ar", "en"],
             },
             "TechnicalSupportAgent": {
                 "skills": ["debugging", "technical guidance", "troubleshooting"],
-                "tools" : ["Database operations (CRUD)", "WhatsApp sender", "Email sender"],
+                "tools": ["Database operations (CRUD)", "WhatsApp sender", "Email sender"],
                 "intents": ["technical", "bug", "configuration"],
-                "languages": ["ar", "en"]
+                "languages": ["ar", "en"],
             },
             "MarketingAgent": {
                 "skills": ["campaign creation", "audience targeting", "analytics"],
-                "tools" : ["Database operations (CRUD)", "WhatsApp sender", "Email sender"],
+                "tools": ["Database operations (CRUD)", "WhatsApp sender", "Email sender"],
                 "intents": ["campaign", "promotion", "marketing"],
-                "languages": ["ar", "en"]
-            }
+                "languages": ["ar", "en"],
+            },
         }
-        
+
         # In-memory fallback
         self.memory_storage = {
             "contexts": {},
             "conversations": []
         }
-    
+
     def _init_storage(self):
-        """تهيئة التخزين مع fallback"""
-        # Redis
-        self.redis = None
-        if REDIS_AVAILABLE:
-            try:
-                self.redis = redis.Redis.from_url(REDIS_URL, decode_responses=True)
-                self.redis.ping()
-                print("✅ Redis connected")
-            except Exception as e:
-                print(f"⚠️ Redis connection failed: {e}")
-                self.redis = None
-        
-        # MongoDB
-        self.db = None
-        if MONGO_AVAILABLE:
-            try:
-                self.mongo_client = MongoClient(MONGO_URI)
-                self.db = self.mongo_client.get_database('siyadah_ai')
-                # Test connection
-                self.db.command('ping')
-                print("✅ MongoDB connected")
-            except Exception as e:
-                print(f"⚠️ MongoDB connection failed: {e}")
-                self.db = None
-    
+        """تهيئة MongoDB (اختياري)"""
+        try:
+            from pymongo import MongoClient
+            self.mongo_client = MongoClient(MONGO_URI)
+            self.db = self.mongo_client["intelligence_db"]
+        except Exception as e:
+            print(f"⚠️ Mongo init failed: {e}")
+            self.db = None
+
     async def process(
-        self, 
-        user_input: str, 
+        self,
+        user_input: str,
         user_email: str,
+        redis_db,
         session_id: Optional[str] = None,
-        use_gpt4: bool = False
+        use_gpt4: bool = False,
     ) -> IntelligenceResponse:
         """المعالج الرئيسي"""
         start_time = datetime.now()
-        
+
         try:
             # 1. جلب السياق
-            context = await self._fetch_context(user_email, session_id)
-            
+            context = await self._fetch_context(user_email, redis_db, session_id)
+
             # 2. بناء البرومبت
             smart_prompt = self._build_smart_prompt(user_input, context)
-            
+
             # 3. استدعاء OpenAI
             model = "gpt-4" if use_gpt4 else "gpt-3.5-turbo"
-            
+
             response = await asyncio.to_thread(
                 self.client.chat.completions.create,
                 model=model,
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are an intelligent assistant that analyzes user requests and returns structured JSON. You understand Arabic and English."
+                        "content": "You are an intelligent assistant that analyzes user requests and returns structured JSON. You understand Arabic and English.",
                     },
                     {
                         "role": "user",
-                        "content": smart_prompt
-                    }
+                        "content": smart_prompt,
+                    },
                 ],
                 temperature=0.2,
-                max_tokens=1500
+                max_tokens=1500,
             )
-            
+
             # 4. معالجة الرد
             content = response.choices[0].message.content
             result = self._parse_response(content)
-            
+
             # 5. حساب التكلفة والوقت
             processing_time = (datetime.now() - start_time).total_seconds()
-            cost = self._calculate_cost(model, response.usage.model_dump())
-            
+            cost = self._calculate_cost(model, dict(response.usage))
+
             # 6. بناء الرد
             intelligence_response = IntelligenceResponse(
                 intent=result.get("intent", "unknown"),
@@ -197,23 +171,28 @@ class SimplifiedIntelligenceLayer:
                 action_type=result.get("action_type", "needs_agent"),
                 direct_response=result.get("direct_response"),
                 confirmation_question=result.get("confirmation_question"),
+                semantic_rewrite=result.get("semantic_rewrite", ""),
+                lang=result.get("lang", "en"),
                 processing_time=processing_time,
                 method_used=model,
-                total_cost=cost
+                total_cost=cost,
             )
-            
+
             # 7. حفظ التفاعل
             await self._save_interaction(user_email, user_input, intelligence_response)
-            
+
             return intelligence_response
-            
+
         except Exception as e:
             print(f"Error in processing: {e}")
             processing_time = (datetime.now() - start_time).total_seconds()
             return self._create_error_response(str(e), processing_time)
-    
+
     def _parse_response(self, content: str) -> Dict:
         """معالجة الرد من OpenAI"""
+        print("############################################################################")
+        print(content)
+        print("############################################################################")
         try:
             return json.loads(content)
         except json.JSONDecodeError:
@@ -225,33 +204,29 @@ class SimplifiedIntelligenceLayer:
                 except:
                     pass
             return self._create_default_result()
-    
-    async def _fetch_context(self, user_email: str, session_id: Optional[str]) -> Dict:
-        """جلب السياق - مُصحح"""
+
+    async def _fetch_context(self, user_email: str, redis_db, session_id: Optional[str]) -> Dict:
+        """جلب السياق"""
         context = {
             "user_email": user_email,
             "history": [],
             "preferences": {"language": "ar", "communication_style": "formal"},
             "patterns": {}
         }
-        
+
         try:
-            # استخدام is not None للتحقق الصحيح
             if self.db is not None:
-                # من MongoDB
                 conversations = list(
                     self.db.conversations.find(
                         {"user_email": user_email},
                         {"user_input": 1, "intent": 1, "timestamp": 1, "_id": 0}
                     ).sort("timestamp", -1).limit(5)
                 )
-                
                 for conv in conversations:
                     if "timestamp" in conv and hasattr(conv["timestamp"], "isoformat"):
                         conv["timestamp"] = conv["timestamp"].isoformat()
-                
                 context["history"] = conversations
-                
+
                 profile = self.db.profiles.find_one({"email": user_email})
                 if profile:
                     context["preferences"] = {
@@ -259,16 +234,15 @@ class SimplifiedIntelligenceLayer:
                         "communication_style": profile.get("communication_style", "formal")
                     }
             else:
-                # من الذاكرة
                 if user_email in self.memory_storage["contexts"]:
                     context = self.memory_storage["contexts"][user_email]
         except Exception as e:
             print(f"⚠️ Context fetch warning: {e}")
-        
+
         return context
-    
+
     async def _save_interaction(self, user_email: str, user_input: str, response: IntelligenceResponse):
-        """حفظ التفاعل - مُصحح"""
+        """حفظ التفاعل"""
         interaction = {
             "user_email": user_email,
             "timestamp": datetime.now(),
@@ -280,42 +254,39 @@ class SimplifiedIntelligenceLayer:
             "method": response.method_used,
             "cost": response.total_cost
         }
-        
+
         try:
-            # استخدام is not None للتحقق الصحيح
             if self.db is not None:
                 self.db.conversations.insert_one(interaction.copy())
             else:
-                # حفظ في الذاكرة
                 self.memory_storage["conversations"].append(interaction)
-                
+
                 if user_email not in self.memory_storage["contexts"]:
                     self.memory_storage["contexts"][user_email] = {
                         "history": [],
                         "preferences": {},
                         "patterns": {}
                     }
-                
+
                 self.memory_storage["contexts"][user_email]["history"].append({
                     "user_input": user_input,
                     "intent": response.intent,
                     "timestamp": interaction["timestamp"].isoformat()
                 })
-                
-                # الاحتفاظ بآخر 5
+
                 if len(self.memory_storage["contexts"][user_email]["history"]) > 5:
                     self.memory_storage["contexts"][user_email]["history"] = \
                         self.memory_storage["contexts"][user_email]["history"][-5:]
         except Exception as e:
             print(f"⚠️ Save warning: {e}")
-    
+
     def _build_smart_prompt(self, user_input: str, context: Dict) -> str:
         """بناء برومبت ذكي"""
         agents_info = json.dumps(self.agent_capabilities, indent=2)
         context_str = json.dumps(context, ensure_ascii=False, indent=2)
         
-        return f"""
-Analyze this Arabic/English user request and return JSON.
+        return  f"""
+Analyze this user request and return ONLY JSON.
 
 USER INPUT: "{user_input}"
 CONTEXT: {context_str}
@@ -323,84 +294,91 @@ AGENTS: {agents_info}
 
 RULES:
 
-- Intent Detection
-  - Identify the **primary intent** using semantic understanding (not keyword matching).
-  - Use a **controlled vocabulary** for intent values:
-    ["greeting", "express_gratitude", "add_client", "report_problem", 
-     "pricing_inquiry", "marketing_campaign", "query_info", "other"].
+[Intent Detection]
+- Identify the **primary intent** semantically (not keyword-based).
+- Allowed values: ["greeting", "express_gratitude", "add_client", 
+  "report_problem", "pricing_inquiry", "marketing_campaign", 
+  "query_info", "other"].
+- Detect sub-intents if present and return as an array.
+- If confidence < 0.5, fallback to "other".
 
-- Sub-intents
-  - Detect secondary or related intents if present.
-  - Return as an array.
+[Entities Extraction]
+- Extract structured data (e.g., customer names, product names, dates, locations).
+- Always return in form: [{{"type": "entity_type", "value": "entity_value"}}].
+- If required or mandatory entities are missing OR the request is vague/underspecified 
+  (even after considering CONTEXT), force action_type = "needs_confirmation".
 
-- Entities Extraction
-  - Extract structured data (e.g., customer names, product names, numbers, dates, locations).
-  - Always include entity type and value.
+[Urgency Classification]
+- Classify request as: "low", "normal", or "urgent".
 
-- Urgency Classification
-  - Classify as: "low", "normal", or "urgent".
+[Contextual Understanding]
+- Briefly summarize relevant context/history.
 
-- Contextual Understanding
-  - Summarize relevant user context/history briefly.
+[Agent Recommendation]
+- Map intents to agents only when required:
+    • greeting → null  
+    • express_gratitude → null  
+    • add_client → DatabaseAgent  
+    • report_problem → CustomerServiceAgent  
+    • pricing_inquiry → SalesAgent  
+    • marketing_campaign → MarketingAgent  
+    • query_info → null (unless product/pricing → SalesAgent)  
+    • other → null
+- If multiple agents might help, include them in "supporting_agents".
 
-- Agent Recommendation
-  - Use explicit mappings:
-      • greeting → no agent  
-      • express_gratitude → no agent  
-      • report_problem → CustomerServiceAgent  
-      • pricing_inquiry → SalesAgent  
-      • marketing_campaign → MarketingAgent  
-      • query_info → SalesAgent (unless context suggests otherwise)  
-      • other → null
-  - If multiple agents might help, list them in "supporting_agents".
+[Action Handling]
+- action_type options:
+    • "direct_response" → can answer immediately without agent and no clarification needed.  
+    • "needs_agent" → requires agent AND all required entities are fully provided.  
+    • "needs_confirmation" → request is unclear, vague, or missing details. Always ask a direct clarifying question before proceeding.  
+- Always set "need_more_data" = true when information is incomplete.  
+- If action_type = "needs_confirmation", "confirmation_question" must contain a natural, direct clarifying question in the user’s language.  
+- Never assume unspecified details. Always confirm with the user first.  
+- Never allow "needs_agent" if entities are missing or unclear.  
+- This rule applies to **all intents**, not only add_client or marketing_campaign.
 
-- Action Type
-  - "direct_response" → if response can be generated immediately.
-  - "needs_agent" → if the request requires an agent and all required entities are provided.
-  - "needs_confirmation" → if clarification or missing entities are required.
-    • Always check if mandatory entities are missing for the detected intent.
-    • If entities are missing, return a polite clarification question.
-    • Examples:
-        - add_client without a name → confirmation_question: "من فضلك، ما اسم العميل الذي ترغب في إضافته؟"
-        - report_problem without description → confirmation_question: "ما تفاصيل المشكلة التي تواجهها؟"
-        - pricing_inquiry without product → confirmation_question: "أي منتج تود معرفة سعره؟"
-    • The question must be context-aware, short, and professional.
-    • Also set "need_more_data" = true if information is missing.
+[Specialist Agent Prompt Construction]
+- If action_type = "needs_agent", build an "agent_prompt" string that is:
+    • Self-contained and unambiguous.  
+    • Includes: USER INPUT, CONTEXT summary, extracted ENTITIES, identified INTENT, and clarified goals.  
+    • Written as clear instructions for the recommended agent.  
+    • Example:  
+        "The user wants to add a new client. Context: previous interactions suggest they are onboarding. Entities: {{'client_name': 'Acme Corp'}}. Task: Register this client in the database and confirm success."  
+- agent_prompt must be null if action_type ≠ "needs_agent".
 
-- Direct Response Rules
-  - If intent = "express_gratitude":
-      • Respond politely in Arabic, confirming the gratitude.
-      • Vary wording naturally (e.g., "على الرحب والسعة!", "عفواً! سعيد بخدمتك", "لا شكر على واجب").
-      • Keep tone formal but warm.
+[Direct Response Rules]
+- If intent = "express_gratitude":
+    • Respond politely in Arabic, with formal but warm tone.
+- If intent = "greeting":
+    • Respond with a polite Arabic greeting acknowledging the user.
+- If intent = "other" but conversational:
+    • Provide a short, polite, informative direct response.
+- If action_type = "needs_confirmation":
+    • Do not generate "direct_response". Instead populate only "confirmation_question".
+- In all direct responses:
+    • recommended_agent = null
+    • supporting_agents = []
+    • direct_response must never be null unless action_type = "needs_confirmation".
 
-  - If intent = "greeting":
-      • Respond with a polite Arabic greeting.
-      • Optionally acknowledge user’s input before guiding them (e.g., 
-        "أهلاً وسهلاً! كيف يمكنني مساعدتك اليوم؟", 
-        "مرحباً بك! ما الذي تود معرفته؟").
-      • Keep tone professional, not casual slang.
+[Semantic Expansion]
+- Rewrite user request into a clear, detailed, contextualized form.
+- Resolve vague pronouns using context when possible.
+- Add this as "semantic_rewrite" in output.
+- If underspecified, highlight the ambiguity explicitly.
 
-  - Otherwise:
-      • direct_response = null
+[Predictions & Recommendations]
+- Predict likely next action.
+- Suggest helpful recommendations.
 
-- Semantic Expansion
-  - Rewrite the user request into a **clear, detailed, and contextualized prompt** that represents what the user really wants.
-  - Use conversation history to resolve vague inputs or pronouns (e.g., "منهم؟" → "The user wants details about their customers after asking for the total count").
-  - Add this rewrite as "semantic_rewrite" in the JSON output.
-
-- Predictions & Recommendations
-  - Predict the next likely action the user may take.
-  - Suggest recommendations if helpful.
-
-RETURN ONLY JSON:
+FINAL JSON OUTPUT SCHEMA:
 {{
     "intent": "primary_intent",
     "sub_intents": [],
     "confidence": 0.0-1.0,
-    "entities": {{}},
+    "entities": [],
     "urgency": "normal",
     "user_context_summary": "summary",
-    "recommended_agent": "AgentName",
+    "recommended_agent": "AgentName or null",
     "supporting_agents": [],
     "execution_mode": "single",
     "priority": "normal",
@@ -411,26 +389,27 @@ RETURN ONLY JSON:
     "direct_response": null or "response",
     "confirmation_question": null or "question",
     "semantic_rewrite": "expanded and clarified version of the user request",
+    "agent_prompt": null or "specialist-ready instruction string",
+    "lang" : the user input language ar/en/fr , default "en"
     "need_more_data": false
 }}
 """
+
 
     def _calculate_cost(self, model: str, usage: Dict) -> float:
         """حساب التكلفة"""
         costs = {
             "gpt-3.5-turbo": {"prompt": 0.001, "completion": 0.002},
-            "gpt-4": {"prompt": 0.03, "completion": 0.06}
+            "gpt-4": {"prompt": 0.03, "completion": 0.06},
         }
-        
+
         model_costs = costs.get(model, costs["gpt-3.5-turbo"])
         prompt_tokens = usage.get("prompt_tokens", 0) / 1000
         completion_tokens = usage.get("completion_tokens", 0) / 1000
-        
-        total = (prompt_tokens * model_costs["prompt"]) + \
-                (completion_tokens * model_costs["completion"])
-        
+
+        total = (prompt_tokens * model_costs["prompt"]) + (completion_tokens * model_costs["completion"])
         return round(total, 6)
-    
+
     def _create_default_result(self) -> Dict:
         """نتيجة افتراضية"""
         return {
@@ -449,9 +428,9 @@ RETURN ONLY JSON:
             "recommendations": [],
             "action_type": "needs_confirmation",
             "direct_response": None,
-            "confirmation_question": "كيف يمكنني مساعدتك؟"
+            "confirmation_question": "كيف يمكنني مساعدتك؟",
         }
-    
+
     def _create_error_response(self, error: str, processing_time: float) -> IntelligenceResponse:
         """رد الخطأ"""
         return IntelligenceResponse(
@@ -475,64 +454,65 @@ RETURN ONLY JSON:
             confirmation_question=None,
             processing_time=processing_time,
             method_used="error",
-            total_cost=0.0
+            lang="en",
+            total_cost=0.0,
         )
+
 
 # ============== MAIN TEST ==============
 
-async def main():
+async def main(user_email, user_input, redis_db):
     """اختبار الطبقة الذكية"""
-    
-    # تحقق من API Key
-    if not OPENAI_API_KEY:
-        print("❌ Please set OPENAI_API_KEY environment variable")
-        return
-    
-    print(f"🔑 API Key: {OPENAI_API_KEY[:20]}...")
-    
-    # إنشاء الطبقة الذكية
     intelligence = SimplifiedIntelligenceLayer()
-    
-    # أمثلة اختبار
-    test_cases = [
+    try:
+        return await intelligence.process(user_input, user_email, redis_db, use_gpt4=False)
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        return "An error occurred when we tried to execute the user input"
 
-        "أضف عميل جديد ",
-        "أستخرج عملائي من قاعدة البيانات  و أرسل رسالة واتساب ترحيبية لأول 10 عملاء  ثم أرسل ايميل ترحيبي للجميع  ",
-        
-    ]
-    
-    for user_input in test_cases:
-        print(f"\n{'='*60}")
-        print(f"📝 Input: {user_input}")
-        
-        try:
-            result = await intelligence.process(
-                user_input=user_input,
-                user_email="mohamed.aakaaa@d10.sa",
-                use_gpt4=False
-            )
-            print("=============================================================")
-            print(result)
-            print("=============================================================")
-            print(f"\n🎯 Intent: {result.intent} (Confidence: {result.confidence:.0%})")
-            print(f"🤖 Recommended Agent: {result.recommended_agent}")
-            print(f"⚡ Priority: {result.priority}")
-            print(f"🔮 Next Action: {result.next_likely_action}")
-            
-            if result.action_type == "direct_response":
-                print(f"💬 Direct Response: {result.direct_response}")
-            elif result.action_type == "needs_confirmation":
-                print(f"❓ Question: {result.confirmation_question}")
-            elif result.action_type == "needs_agent":
-                print(f"🔄 Processing with: {result.recommended_agent}")
-                if result.supporting_agents:
-                    print(f"   Supporting: {', '.join(result.supporting_agents)}")
-            
-            print(f"\n💰 Cost: ${result.total_cost:.4f}")
-            print(f"⏱️ Time: {result.processing_time:.3f}s")
-            
-        except Exception as e:
-            print(f"❌ Error: {e}")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    import asyncio
+    import redis
+
+    # بريد المستخدم (ثابت للتجربة)
+    user_email = "tester@example.com"
+
+    # قائمة الطلبات للتجربة (20 مثال متنوع)
+    test_inputs = [
+        "السلام عليكم",  # تحية
+        "شكرًا جزيلًا على مساعدتك",  # شكر
+        "أريد معرفة سعر المنتج X",  # استعلام سعر
+        "أريد شراء 5 قطع من المنتج Y",  # طلب شراء
+        "لدي مشكلة في تسجيل الدخول",  # شكوى تقنية
+        "أريد إطلاق حملة تسويقية جديدة لمنتج Z",  # تسويق
+        "أضف عميل جديد اسمه أحمد برقم 0501234567",  # إضافة عميل
+        "ممكن تفاصيل أكثر عن الباقة الذهبية؟",  # استعلام معلومات
+        "يوجد خطأ في فاتورتي الأخيرة",  # شكوى
+        "أحتاج عرض سعر لكمية 100 وحدة",  # مبيعات
+        "أريد إرسال بريد تسويقي لعملاء جدة",  # تسويق
+        "المنتج لا يعمل عندي",  # دعم فني
+        "أريد تحديث بياناتي",  # تعديل بيانات
+        "أعطني تفاصيل عن آخر عميل أضفته",  # استعلام تاريخ
+        "ممكن تنصحني بالخطة الأفضل لشركتي الصغيرة؟",  # توصية
+        "هل ممكن التواصل عبر واتساب بدل الإيميل؟",  # تفضيل تواصل
+        "عميل اسمه فهد بريد fhd@example.com رقم 0556784321",  # إضافة عميل جديد
+        "ممكن تعمل خصم على الطلب الكبير؟",  # تفاوض/مبيعات
+        "أريد إعداد حملة إعلانية على فيسبوك",  # تسويق
+        "شكراً لكم، كانت التجربة ممتازة",  # شكر
+    ]
+
+    # Redis client (محلي أو من env)
+    redis_client = redis.from_url(
+        os.getenv("REDIS_URL", "redis://localhost:6379"),
+        decode_responses=True,
+    )
+
+    async def run_tests():
+        for i, user_prompt in enumerate(test_inputs, start=1):
+            print(f"\n====== الطلب رقم {i}: {user_prompt} ======")
+            result = await main(user_email, user_prompt, redis_client)
+            print("************************************")
+            print(result)
+
+    asyncio.run(run_tests())

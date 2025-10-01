@@ -130,7 +130,7 @@ class MongoDBCountDocumentsTool(BaseTool):
         arbitrary_types_allowed = True
 import os
 llm_obj = LLM(
-    model="gpt-4o",
+    model="gpt-3.5-turbo",
     api_key=os.getenv("OPENAI_API_KEY"),
     temperature=0.3,
 )

@@ -1,10 +1,50 @@
-# agents/unified_customer_service_agent.py
+import os
+from crewai import Agent, LLM
 
-from crewai import Agent
+# 🔹 Database tools
+from Tools.db_tools import (
+    MongoDBConnection,
+    MongoDBListCollectionsTool,
+    MongoDBCreateDocumentTool,
+    MongoDBUpdateDocumentTool,
+    MongoDBDeleteDocumentTool,
+    MongoDBReadDataTool,
+    MongoDBCountDocumentsTool
+)
+
+# 🔹 Communication tools
 from Tools.whatsApp_tools import WhatsAppTool
 from Tools.email_tools import MailerSendTool
 
+from dotenv import load_dotenv
+load_dotenv()
 def unified_customer_service_agent(llm_obj, user_email) -> Agent:
+
+    # Database connection
+    connection = MongoDBConnection(
+        connection_string=os.getenv("MONGO_DB_URI"),
+        db_name=os.getenv("DB_NAME")
+    )
+
+    # Database Tools
+    list_collections_tool = MongoDBListCollectionsTool(connection)
+    create_document_tool = MongoDBCreateDocumentTool(connection)
+    update_document_tool = MongoDBUpdateDocumentTool(connection)
+    delete_document_tool = MongoDBDeleteDocumentTool(connection)
+    read_data_tool = MongoDBReadDataTool(connection)
+    count_documents_tool = MongoDBCountDocumentsTool(connection, user_email)
+
+    # Sales Tools
+    # Sales Tools
+    whatsapp_tool = WhatsAppTool(user_email=user_email)
+    email_tool = MailerSendTool(user_email=user_email)
+
+   
+
+    # Collections info
+    collections_info = list_collections_tool._run()
+
+
     goal_text = (
         f"Provide complete customer service by receiving messages, generating contextual replies, "
         f"and sending them through the appropriate channel (WhatsApp or Email). "
@@ -39,8 +79,14 @@ def unified_customer_service_agent(llm_obj, user_email) -> Agent:
         goal=goal_text,
         backstory=backstory_text,
         tools=[
-            WhatsAppTool(user_email=user_email),
-            MailerSendTool(user_email=user_email)
+            list_collections_tool,
+            create_document_tool,
+            update_document_tool,
+            delete_document_tool,
+            read_data_tool,
+            count_documents_tool,
+            whatsapp_tool,
+            email_tool
         ],
         allow_delegation=False,
         llm=llm_obj,

@@ -19,6 +19,7 @@ from agents.planner_agent import planner
 from agents.knowledge_based_content_agent import knowledge_based_content_agent
 from agents.sales_agent import sales_agent
 from agents.marketing_agent import marketing_agent
+from agents.customer_service_agent import unified_customer_service_agent
 from fastapi.responses import JSONResponse
 from fastapi import Request, Response
 from datetime import datetime
@@ -42,7 +43,7 @@ def get_llm():
     Initialize the LLM (Large Language Model) with a predefined model and API key.
     """
     return LLM(
-        model="gpt-4o",
+        model="gpt-3.5-turbo",
         api_key=os.getenv("OPENAI_API_KEY"),
         temperature=0.1,
         max_tokens=500,
@@ -64,6 +65,7 @@ def get_workers(user_email, user_language, knowledge_base, context_window=[]):
         marketing_agent(llm_obj, user_language),
         sales_agent(llm_obj, user_language),
         siyadah_helper_agent(llm_obj, user_language),
+        unified_customer_service_agent(llm_obj, user_language),
     ]
 
 from crewai import Task
@@ -72,37 +74,46 @@ from crewai import Task
 def get_understand_and_execute_task():
     """
     Define and return the task for understanding and executing user prompts,
-    optimized for Marketing, Sales, and Siyadah Helper agents only.
+    optimized for Marketing, Sales, Siyadah Helper, and Customer Service agents.
     """
 
     return Task(
         description=(
-            "You manage an AI system with THREE specialized agents capable of:\n\n"
+            "You manage an AI system with FOUR specialized agents capable of:\n\n"
             
             "🎯 **MARKETING AGENT Capabilities**:\n"
-            "1. 📊 **Campaign Management**: Create and execute multi-channel marketing campaigns\n"
-            "2. 📧 **Email Marketing**: Draft and send marketing emails via MailerSend\n"
-            "3. 📱 **WhatsApp Campaigns**: Create and send WhatsApp marketing messages\n"
-            "4. 🗂️ **Customer Segmentation**: Query and segment customers from MongoDB\n"
-            "5. 📈 **Analytics**: Analyze campaign performance and customer engagement\n"
-            "6. 🎨 **Content Creation**: Generate marketing content enriched with knowledge base\n"
-            "7. 🔍 **Database Operations**: CRUD operations on MongoDB (customers, campaigns, etc.)\n\n"
+            "1. 📊 Campaign Management: Create and execute multi-channel marketing campaigns\n"
+            "2. 📧 Email Marketing: Draft and send marketing emails via MailerSend\n"
+            "3. 📱 WhatsApp Campaigns: Create and send WhatsApp marketing messages\n"
+            "4. 🗂️ Customer Segmentation: Query and segment customers from MongoDB\n"
+            "5. 📈 Analytics: Analyze campaign performance and customer engagement\n"
+            "6. 🎨 Content Creation: Generate marketing content enriched with knowledge base\n"
+            "7. 🔍 Database Operations: CRUD operations on MongoDB (customers, campaigns, etc.)\n\n"
             
             "💼 **SALES AGENT Capabilities**:\n"
-            "1. 🤝 **Lead Management**: Track and nurture leads through the sales funnel\n"
-            "2. 📞 **Sales Outreach**: Create personalized sales pitches and follow-ups\n"
-            "3. 💰 **Deal Tracking**: Monitor and update sales opportunities in database\n"
-            "4. 📊 **CRM Operations**: Manage customer relationships and sales data\n"
-            "5. 📧 **Sales Emails**: Send targeted sales emails with product information\n"
-            "6. 📱 **WhatsApp Sales**: Direct sales messaging to prospects\n"
-            "7. 🗂️ **Database Management**: Access and update sales records in MongoDB\n\n"
+            "1. 🤝 Lead Management: Track and nurture leads through the sales funnel\n"
+            "2. 📞 Sales Outreach: Create personalized sales pitches and follow-ups\n"
+            "3. 💰 Deal Tracking: Monitor and update sales opportunities in database\n"
+            "4. 📊 CRM Operations: Manage customer relationships and sales data\n"
+            "5. 📧 Sales Emails: Send targeted sales emails with product information\n"
+            "6. 📱 WhatsApp Sales: Direct sales messaging to prospects\n"
+            "7. 🗂️ Database Management: Access and update sales records in MongoDB\n\n"
             
             "❓ **SIYADAH HELPER AGENT Capabilities**:\n"
-            "1. 📚 **Platform Knowledge**: Answer questions about Siyadah platform\n"
-            "2. 🔧 **Technical Support**: Help with platform features and troubleshooting\n"
-            "3. 📖 **User Guidance**: Provide instructions on how to use the system\n"
-            "4. 💡 **Best Practices**: Share tips for effective platform usage\n"
-            "5. 🎓 **Training**: Explain agent capabilities and workflows\n\n"
+            "1. 📚 Platform Knowledge: Answer questions about Siyadah platform\n"
+            "2. 🔧 Technical Support: Help with platform features and troubleshooting\n"
+            "3. 📖 User Guidance: Provide instructions on how to use the system\n"
+            "4. 💡 Best Practices: Share tips for effective platform usage\n"
+            "5. 🎓 Training: Explain agent capabilities and workflows\n\n"
+            
+            "📞 **CUSTOMER SERVICE AGENT Capabilities**:\n"
+            "1. 💬 Intent Detection: Analyze customer messages (greetings, complaints, requests)\n"
+            "2. 📝 Smart Replies: Generate contextual responses in the customer's language\n"
+            "3. 📱 Multi-Channel Support: Send replies via WhatsApp (short/friendly) or Email (formal)\n"
+            "4. 🤗 Sentiment Handling: Detect tone and urgency, respond empathetically\n"
+            "5. 🔄 Escalation: Route unresolved issues to Sales/Marketing/Helper when needed\n"
+            "6. 🗂️ Database Operations: Save, update, and retrieve conversation history\n"
+            "7. ✅ Auto-Send: Deliver replies instantly, no placeholders allowed\n\n"
             
             "🧠 **Context Usage Policy**:\n"
             "- {context_window} helps understand user intent and previous interactions\n"
@@ -112,56 +123,62 @@ def get_understand_and_execute_task():
             "📝 **Communication Principles**:\n"
             "- Respond in {user_language} consistently\n"
             "- Keep responses concise and action-oriented\n"
-            "- No placeholders or dummy data - use real information only\n\n"
+            "- No placeholders or dummy data — use real information only\n\n"
             
             "User Request: \n\n {user_prompt}\n\n"
             
             "📌 **Smart Agent Routing**:\n"
-            "🎯 'marketing campaign', 'email blast', 'customer segment' → **Marketing Agent**\n"
-            "💼 'sales', 'leads', 'deals', 'prospects', 'close' → **Sales Agent**\n"
-            "❓ 'how to', 'help', 'what is Siyadah', 'platform question' → **Siyadah Helper Agent**\n"
+            "🎯 'marketing campaign', 'email blast', 'customer segment' → Marketing Agent\n"
+            "💼 'sales', 'leads', 'deals', 'prospects', 'close' → Sales Agent\n"
+            "❓ 'how to', 'help', 'what is Siyadah', 'platform question' → Siyadah Helper Agent\n"
+            "📞 'customer support', 'complaint', 'issue', 'respond to customer' → Customer Service Agent\n"
             "🔄 Multiple needs → Coordinate between relevant agents\n"
             "❓ Unclear intent → Ask for clarification\n\n"
             
             "📜 **Execution Protocol**:\n"
-            "1. **Intent Analysis**: Determine which agent(s) should handle the request\n"
-            "2. **Language Detection**: Ensure response matches user's language\n"
-            "3. **Context Integration**: Use previous conversation for continuity\n"
-            "4. **Agent Selection**:\n"
+            "1. Intent Analysis: Determine which agent(s) should handle the request\n"
+            "2. Language Detection: Ensure response matches user's language\n"
+            "3. Context Integration: Use previous conversation for continuity\n"
+            "4. Agent Selection:\n"
             "   - Marketing tasks → Marketing Agent\n"
             "   - Sales tasks → Sales Agent\n"
             "   - Platform questions → Siyadah Helper Agent\n"
+            "   - Customer inquiries → Customer Service Agent\n"
             "   - Complex tasks → Multiple agents in sequence\n"
-            "5. **Data Validation**:\n"
+            "5. Data Validation:\n"
             "   - All database queries scoped by {user_email}\n"
             "   - Real customer data only (no mocks)\n"
             "   - Verify credentials before sending messages\n"
-            "6. **Quality Control**:\n"
+            "6. Quality Control:\n"
             "   - No placeholders in content\n"
             "   - Professional tone maintained\n"
             "   - Clear, actionable responses\n"
-            "7. **Error Handling**:\n"
+            "7. Error Handling:\n"
             "   - Missing data → Request clarification\n"
             "   - Failed operations → Clear error message\n"
-            "   - No credentials → Inform user to add them\n\n"
+            "   - No credentials → Inform user to add them\n"
+            "8. Escalation:\n"
+            "   - Escalate unresolved customer issues to relevant agent\n"
+            "   - Escalate repeated failures to Manager Agent\n\n"
             
             "⚡ **Performance Optimizations**:\n"
-            "- Both Marketing and Sales agents have MongoDB tools - use efficiently\n"
-            "- Both can send WhatsApp/Email - choose based on context\n"
-            "- Share customer data between agents to avoid duplicate queries\n"
-            "- Cache frequently accessed data\n\n"
-            
+            "- Both Marketing and Sales agents share MongoDB tools — reuse efficiently\n"
+            "- Customer Service should reuse CRM/Marketing data for personalization\n"
+            "- Share customer context between agents to avoid duplicate queries\n"
+            "- Cache frequently accessed data\n"
+            "- Prioritize WhatsApp for fast updates, Email for detailed follow-up\n\n"
             
             "🚨 **Critical Rules**:\n"
-            "- **Data Security**: All operations restricted to user's data only\n"
-            "- **Real Data Only**: Never use example.com or dummy numbers\n"
-            "- **Credential Check**: Verify API keys exist before sending\n"
-            "- **Rate Limiting**: Respect API limits for email/WhatsApp\n"
-            "- **Professional Standards**: Maintain business communication quality\n"
-            "- **Language Consistency**: Always respond in {user_language}\n"
+            "- Data Security: All operations restricted to user's data only\n"
+            "- Real Data Only: Never use example.com or dummy numbers\n"
+            "- Credential Check: Verify API keys exist before sending\n"
+            "- Rate Limiting: Respect API limits for email/WhatsApp\n"
+            "- Professional Standards: Maintain business communication quality\n"
+            "- Language Consistency: Always respond in {user_language}\n"
         ),
         expected_output=(
             "Expected outputs by agent type:\n\n"
+            
             "🎯 **Marketing Agent Outputs**:\n"
             "✅ Campaign created with [X] recipients targeted\n"
             "✅ Email sent to [X] customers about [campaign]\n"
@@ -182,6 +199,13 @@ def get_understand_and_execute_task():
             "✅ Best practice recommendation given\n"
             "✅ Platform capability clarified\n\n"
             
+            "📞 **Customer Service Agent Outputs**:\n"
+            "✅ WhatsApp reply sent: '[actual response]' to [customer number]\n"
+            "✅ Email reply sent: '[actual response]' to [customer email]\n"
+            "✅ Escalation triggered to [Sales/Marketing/Helper] with context\n"
+            "✅ Sentiment detected: [positive/negative/urgent] → response adapted\n"
+            "✅ Conversation history updated in DB with [X] new messages\n\n"
+            
             "📊 **General Format Rules**:\n"
             "🔣 Response language = {user_language}\n"
             "📝 Concise, actionable responses\n"
@@ -191,6 +215,8 @@ def get_understand_and_execute_task():
             "➕ Always end with a context-aware recommendation question\n"
         ),
     )
+
+    
 def detect_language(text: str) -> str:
     langid.set_languages(['fr', 'en', 'ar'])
     lang, _ = langid.classify(text)
@@ -221,8 +247,7 @@ async def process_prompt(request: UserPromptRequest):
     """
     start = time.time()
     user_prompt = request.prompt
-    context_window = request.context
-    user_email = "mohamed.ak@d10.sa"
+    user_email = "mohamed.akza@d10.sa"
     llm_obj = get_llm()
     
     from utils import save_message, get_messages
@@ -238,11 +263,31 @@ async def process_prompt(request: UserPromptRequest):
     print(redis_context_window)
     print(type(redis_context_window))
     print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-    try:
-        user_language = detect_language(user_prompt)
-    except Exception:
-        user_language = "en"
-    mgr = manager_agent(llm_obj, user_language)
+    from understanding_layer import main
+    import asyncio
+    result= asyncio.run(main(user_email, user_prompt, redis_client))
+    print(result)
+    if result.confirmation_question:
+        print("Needs confirmation:", result.confirmation_question)
+        return JSONResponse(content={
+            "final_output": result.confirmation_question,
+        })
+    elif result.direct_response:
+        print("Direct response:", result.direct_response)
+        return JSONResponse(content={
+            "final_output": result.direct_response,
+        })
+    else:
+        print("Proceed with agent handling")
+        userprompt = result.semantic_rewrite
+        userlanguage = result.lang
+    if not userprompt : 
+        userprompt= user_prompt
+    if not userlanguage:
+        userlanguage = "en"
+
+
+    mgr = manager_agent(llm_obj, userlanguage)
 
     try:
         #client = MongoClient(os.getenv("MONGO_DB_URI"))
@@ -256,7 +301,7 @@ async def process_prompt(request: UserPromptRequest):
     print("-----------------------")
     print(execution_time)
     print("-----------------------")
-    workers = get_workers(user_email, user_language, knowledge_base, str(redis_context_window))
+    workers = get_workers(user_email, userlanguage, knowledge_base, str(redis_context_window))
     understand_and_execute = get_understand_and_execute_task()
 
     tasks = planner(user_prompt, str(redis_context_window), llm_obj)
@@ -278,7 +323,7 @@ async def process_prompt(request: UserPromptRequest):
             "user_prompt": tasks,
             "context_window": str(redis_context_window),
             "user_email": user_email,
-            "user_language": user_language
+            "user_language": userlanguage
         })
 
         if hasattr(final, "raw"):
@@ -436,3 +481,17 @@ async def get_chat_interface():
             return HTMLResponse(content=f.read(), status_code=200)
     else:
         raise HTTPException(status_code=404, detail="HTML chat interface not found.")
+    
+
+@app.post("/salla_webhook/")
+async def salla_webhook_listener(request: Request):
+    try:
+        payload = await request.json()
+        headers = dict(request.headers)
+        print("=== Webhook reçu ===")
+        print("Headers:", headers)
+        print("Payload:", payload)
+        return {"status": "ok"}
+    except Exception as e:
+        print("Erreur de parsing:", e)
+        return {"status": "error"}

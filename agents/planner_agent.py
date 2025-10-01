@@ -121,7 +121,7 @@ if __name__ == "__main__":
     
     # Initialize LLM
     llm = LLM(
-        model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+        model=os.getenv("OPENAI_MODEL", "gpt-3.5-turbo"),
         api_key=os.getenv("OPENAI_API_KEY"),
         temperature=0.1,
         max_tokens=500,

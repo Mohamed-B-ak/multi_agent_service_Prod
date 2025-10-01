@@ -20,7 +20,7 @@ def get_llm():
     Initialize the LLM (Large Language Model) with a predefined model and API key.
     """
     return LLM(
-        model="gpt-4o",
+        model="gpt-3.5-turbo",
         api_key=os.getenv("OPENAI_API_KEY"),
         temperature=0.1,
         max_tokens=500,

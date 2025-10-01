@@ -5,7 +5,7 @@ from crewai import LLM
 os.environ["OPENAI_API_KEY"] = "*************************"  # <-- Put your actual API key here
 
 llm_obj = LLM(
-    model="gpt-4o",
+    model="gpt-3.5-turbo",
     api_key=os.getenv("OPENAI_API_KEY"),  # This now resolves properly
     temperature=0.3,
 )
@@ -108,7 +108,7 @@ if __name__ == "__main__":
     import os
     # 🔐 Setup LLM
     llm_obj = LLM(
-        model="gpt-4o",
+        model="gpt-3.5-turbo",
         api_key=os.getenv("OPENAI_API_KEY"),
         temperature=0.3,
 

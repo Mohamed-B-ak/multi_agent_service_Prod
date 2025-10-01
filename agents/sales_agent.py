@@ -101,7 +101,7 @@ def sales_agent(llm_obj, user_email, user_language="en") -> Agent:
 if __name__ == "__main__":
     # 🔹 Setup your LLM
     llm = LLM(
-        model="gpt-4o",
+        model="gpt-3.5-turbo",
         api_key=os.getenv("OPENAI_API_KEY"),
         temperature=0.1,
         max_tokens=500,
