@@ -42,11 +42,11 @@ class IntelligenceResponse:
     action_type: str
     direct_response: Optional[str]
     confirmation_question: Optional[str]
-    semantic_rewrite: Optional[str]
-    lang: Optional[str]
     processing_time: float
     method_used: str
     total_cost: float
+    semantic_rewrite: Optional[str] = None
+    lang: Optional[str] = "en"
 
 
 class SimplifiedIntelligenceLayer:
@@ -285,115 +285,47 @@ class SimplifiedIntelligenceLayer:
         agents_info = json.dumps(self.agent_capabilities, indent=2)
         context_str = json.dumps(context, ensure_ascii=False, indent=2)
         
-        return  f"""
-Analyze this user request and return ONLY JSON.
+        return f"""
+                قم بتحليل مدخل المستخدم بدقة وأرجع فقط JSON صالح وفقًا للمخطط المحدد أدناه.
 
-USER INPUT: "{user_input}"
-CONTEXT: {context_str}
-AGENTS: {agents_info}
+                INPUT: "{user_input}"
+                CONTEXT: {context_str}
+                AGENTS: {agents_info}
 
-RULES:
+                القواعد:
 
-[Intent Detection]
-- Identify the **primary intent** semantically (not keyword-based).
-- Allowed values: ["greeting", "express_gratitude", "add_client", 
-  "report_problem", "pricing_inquiry", "marketing_campaign", 
-  "query_info", "other"].
-- Detect sub-intents if present and return as an array.
-- If confidence < 0.5, fallback to "other".
+                1. يجب أن تكون الاستجابة دائمًا بنفس لغة أو لهجة المستخدم (لا تغيّر اللغة).  
+                2. تأكد أن النتيجة مرتبطة بالسياق المستلم من واجهة المحادثة.  
+                3. إذا كان طلب المستخدم مباشرًا وبسيطًا ولا يتطلب تدخل وكيل (بحسب قدرات {agents_info})، ضع الإجابة في الحقل direct_response داخل JSON.  
+                4. إذا كان طلب المستخدم غامضًا أو غير مكتمل، اطلب توضيحًا إضافيًا منه وضع السؤال في الحقل confirmation_question داخل JSON.  
+                5. التزم بالمخطط المعطى حرفيًا: لا تضف أو تحذف مفاتيح، حتى لو كانت فارغة.  
+                6. قيمة الحقل "lang" يجب أن تعكس لغة المستخدم تلقائيًا (مثال: "ar" إذا كانت بالعربية، "en" إذا بالإنجليزية).  
+                7. لا تُرجع أي نص أو تفسير خارج JSON.  
 
-[Entities Extraction]
-- Extract structured data (e.g., customer names, product names, dates, locations).
-- Always return in form: [{{"type": "entity_type", "value": "entity_value"}}].
-- If required or mandatory entities are missing OR the request is vague/underspecified 
-  (even after considering CONTEXT), force action_type = "needs_confirmation".
-
-[Urgency Classification]
-- Classify request as: "low", "normal", or "urgent".
-
-[Contextual Understanding]
-- Briefly summarize relevant context/history.
-
-[Agent Recommendation]
-- Map intents to agents only when required:
-    • greeting → null  
-    • express_gratitude → null  
-    • add_client → DatabaseAgent  
-    • report_problem → CustomerServiceAgent  
-    • pricing_inquiry → SalesAgent  
-    • marketing_campaign → MarketingAgent  
-    • query_info → null (unless product/pricing → SalesAgent)  
-    • other → null
-- If multiple agents might help, include them in "supporting_agents".
-
-[Action Handling]
-- action_type options:
-    • "direct_response" → can answer immediately without agent and no clarification needed.  
-    • "needs_agent" → requires agent AND all required entities are fully provided.  
-    • "needs_confirmation" → request is unclear, vague, or missing details. Always ask a direct clarifying question before proceeding.  
-- Always set "need_more_data" = true when information is incomplete.  
-- If action_type = "needs_confirmation", "confirmation_question" must contain a natural, direct clarifying question in the user’s language.  
-- Never assume unspecified details. Always confirm with the user first.  
-- Never allow "needs_agent" if entities are missing or unclear.  
-- This rule applies to **all intents**, not only add_client or marketing_campaign.
-
-[Specialist Agent Prompt Construction]
-- If action_type = "needs_agent", build an "agent_prompt" string that is:
-    • Self-contained and unambiguous.  
-    • Includes: USER INPUT, CONTEXT summary, extracted ENTITIES, identified INTENT, and clarified goals.  
-    • Written as clear instructions for the recommended agent.  
-    • Example:  
-        "The user wants to add a new client. Context: previous interactions suggest they are onboarding. Entities: {{'client_name': 'Acme Corp'}}. Task: Register this client in the database and confirm success."  
-- agent_prompt must be null if action_type ≠ "needs_agent".
-
-[Direct Response Rules]
-- If intent = "express_gratitude":
-    • Respond politely in Arabic, with formal but warm tone.
-- If intent = "greeting":
-    • Respond with a polite Arabic greeting acknowledging the user.
-- If intent = "other" but conversational:
-    • Provide a short, polite, informative direct response.
-- If action_type = "needs_confirmation":
-    • Do not generate "direct_response". Instead populate only "confirmation_question".
-- In all direct responses:
-    • recommended_agent = null
-    • supporting_agents = []
-    • direct_response must never be null unless action_type = "needs_confirmation".
-
-[Semantic Expansion]
-- Rewrite user request into a clear, detailed, contextualized form.
-- Resolve vague pronouns using context when possible.
-- Add this as "semantic_rewrite" in output.
-- If underspecified, highlight the ambiguity explicitly.
-
-[Predictions & Recommendations]
-- Predict likely next action.
-- Suggest helpful recommendations.
-
-FINAL JSON OUTPUT SCHEMA:
-{{
-    "intent": "primary_intent",
-    "sub_intents": [],
-    "confidence": 0.0-1.0,
-    "entities": [],
-    "urgency": "normal",
-    "user_context_summary": "summary",
-    "recommended_agent": "AgentName or null",
-    "supporting_agents": [],
-    "execution_mode": "single",
-    "priority": "normal",
-    "next_likely_action": "next_action",
-    "predictions": {{}},
-    "recommendations": [],
-    "action_type": "direct_response/needs_agent/needs_confirmation",
-    "direct_response": null or "response",
-    "confirmation_question": null or "question",
-    "semantic_rewrite": "expanded and clarified version of the user request",
-    "agent_prompt": null or "specialist-ready instruction string",
-    "lang" : the user input language ar/en/fr , default "en"
-    "need_more_data": false
-}}
-"""
+                OUTPUT JSON SCHEMA:
+                {{
+                "intent": "",
+                "sub_intents": [],
+                "confidence": 0.0,
+                "entities": [],
+                "urgency": "normal",
+                "user_context_summary": "",
+                "recommended_agent": null,
+                "supporting_agents": [],
+                "execution_mode": "single",
+                "priority": "normal",
+                "next_likely_action": "",
+                "predictions": {{}},
+                "recommendations": [],
+                "action_type": "",
+                "direct_response": null,
+                "confirmation_question": null,
+                "semantic_rewrite": "",
+                "agent_prompt": null,
+                "lang": "",
+                "need_more_data": false
+                }}
+                """
 
 
     def _calculate_cost(self, model: str, usage: Dict) -> float:
@@ -480,27 +412,47 @@ if __name__ == "__main__":
 
     # قائمة الطلبات للتجربة (20 مثال متنوع)
     test_inputs = [
-        "السلام عليكم",  # تحية
-        "شكرًا جزيلًا على مساعدتك",  # شكر
-        "أريد معرفة سعر المنتج X",  # استعلام سعر
-        "أريد شراء 5 قطع من المنتج Y",  # طلب شراء
-        "لدي مشكلة في تسجيل الدخول",  # شكوى تقنية
-        "أريد إطلاق حملة تسويقية جديدة لمنتج Z",  # تسويق
-        "أضف عميل جديد اسمه أحمد برقم 0501234567",  # إضافة عميل
-        "ممكن تفاصيل أكثر عن الباقة الذهبية؟",  # استعلام معلومات
-        "يوجد خطأ في فاتورتي الأخيرة",  # شكوى
-        "أحتاج عرض سعر لكمية 100 وحدة",  # مبيعات
-        "أريد إرسال بريد تسويقي لعملاء جدة",  # تسويق
-        "المنتج لا يعمل عندي",  # دعم فني
-        "أريد تحديث بياناتي",  # تعديل بيانات
-        "أعطني تفاصيل عن آخر عميل أضفته",  # استعلام تاريخ
-        "ممكن تنصحني بالخطة الأفضل لشركتي الصغيرة؟",  # توصية
-        "هل ممكن التواصل عبر واتساب بدل الإيميل؟",  # تفضيل تواصل
-        "عميل اسمه فهد بريد fhd@example.com رقم 0556784321",  # إضافة عميل جديد
-        "ممكن تعمل خصم على الطلب الكبير؟",  # تفاوض/مبيعات
-        "أريد إعداد حملة إعلانية على فيسبوك",  # تسويق
-        "شكراً لكم، كانت التجربة ممتازة",  # شكر
-    ]
+"أريد إضافة عميل جديد للنظام.",
+
+"سجّل عميل جديد اسمه أحمد علي.",
+
+"أضف العميل محمد حسن إلى قاعدة البيانات.",
+
+"أريد تسجيل بيانات عميل جديد.",
+
+"كيف يمكنني إضافة عميل جديد؟",
+
+"أدخل عميل جديد برقم هاتف 0501234567.",
+
+"أريد إنشاء حساب لعميل جديد.",
+
+"أضف هذا العميل: الاسم خالد، البريد khaled@test.com",
+
+"سجّل عميل جديد عندنا.",
+
+"هل يمكنك إضافة عميل جديد للنظام؟",
+
+"أدخل بيانات عميل جديد للشركة.",
+
+"أريد إضافة زبون جديد الآن.",
+
+"سجّل عميل جديد اسمه سارة محمد.",
+
+"أضف عميل جديد مع البريد الإلكتروني sara@test.com.",
+
+"كيف أضيف عميل جديد لقاعدة العملاء؟",
+
+"أريد إضافة عميل باسم شركة المستقبل.",
+
+"رجاءً أضف عميل جديد برقم 12345.",
+
+"أدخل عميل جديد في النظام الإداري.",
+
+"سجّل عميل جديد مع التفاصيل التالية: الاسم: أحمد، الهاتف: 0555555555.",
+
+"أريد إنشاء سجل جديد لعميل في النظام.",
+]
+
 
     # Redis client (محلي أو من env)
     redis_client = redis.from_url(
@@ -513,6 +465,15 @@ if __name__ == "__main__":
             print(f"\n====== الطلب رقم {i}: {user_prompt} ======")
             result = await main(user_email, user_prompt, redis_client)
             print("************************************")
-            print(result)
+            #print(result)
+            print("##########################################")
+            print("##########################################")
+            if result.confirmation_question:
+                print("Needs confirmation:", result.confirmation_question)
+
+            elif result.direct_response:
+                print("Direct response:", result.direct_response)
+            print("##########################################")
+            print("##########################################")
 
     asyncio.run(run_tests())

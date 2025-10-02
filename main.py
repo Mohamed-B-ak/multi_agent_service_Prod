@@ -247,7 +247,7 @@ async def process_prompt(request: UserPromptRequest):
     """
     start = time.time()
     user_prompt = request.prompt
-    user_email = "mohamed.akza@d10.sa"
+    user_email = "mohamed.aazb@d10.sa"
     llm_obj = get_llm()
     
     from utils import save_message, get_messages
@@ -269,11 +269,19 @@ async def process_prompt(request: UserPromptRequest):
     print(result)
     if result.confirmation_question:
         print("Needs confirmation:", result.confirmation_question)
+        try : 
+            save_message(redis_client, user_email, "system", result.confirmation_question)
+        except:
+            print("Sorry, i can't save the system response")
         return JSONResponse(content={
             "final_output": result.confirmation_question,
         })
     elif result.direct_response:
         print("Direct response:", result.direct_response)
+        try : 
+            save_message(redis_client, user_email, "system", result.direct_response)
+        except:
+            print("Sorry, i can't save the system response")
         return JSONResponse(content={
             "final_output": result.direct_response,
         })
