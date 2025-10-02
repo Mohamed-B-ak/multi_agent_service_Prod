@@ -247,7 +247,7 @@ async def process_prompt(request: UserPromptRequest):
     """
     start = time.time()
     user_prompt = request.prompt
-    user_email = "mohamed.aazb@d10.sa"
+    user_email = "mohamed.akaaaq@d10.sa"
     llm_obj = get_llm()
     
     from utils import save_message, get_messages
@@ -256,16 +256,49 @@ async def process_prompt(request: UserPromptRequest):
     save_message(redis_client, user_email, "user", user_prompt)
 
     # Get chat history
-
+    from understandinglayer.simple_messages import get_response
+    try:
+        response = get_response(user_prompt)
+        if response:
+            save_message(redis_client, user_email, "system", response)
+            return JSONResponse(content={
+            "final_output": response,
+        })
+    except:
+        print("there is an error occured when we are trying to get reponse fromh e defined reponses ")
     redis_context_window = get_messages(redis_client, user_email, limit=10)
 
+    from understandinglayer.understand_prompt import PromptUnderstandingLayer
+
+    understanding = PromptUnderstandingLayer(user_prompt, redis_context_window)
+    understanding_res = understanding.understand()
+    print("++++++++++++++++++++++++++++++++++++++++++++")
+    print(understanding_res.to_dict())
+    print("++++++++++++++++++++++++++++++++++++++++++++")
+    print(understanding_res.response_type)
+    from utils import respond_to_user, check_required_data
+    if understanding_res.response_type == "simple":
+        return JSONResponse(content={
+            "final_output": respond_to_user(user_prompt, redis_context_window),
+        })
+    
+
+    confirmation = check_required_data(user_prompt, redis_context_window)
+    if isinstance(confirmation, dict):
+        if confirmation["need_details"] == "yes":
+            return JSONResponse(content={
+                    "final_output": confirmation['message'],
+                })  
+
+    print("an error occurd when we are trying to male conformation")
+        
     print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     print(redis_context_window)
     print(type(redis_context_window))
     print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     from understanding_layer import main
     import asyncio
-    result= asyncio.run(main(user_email, user_prompt, redis_client))
+    result= asyncio.run(main(user_email, user_prompt, redis_client, redis_context_window))
     print(result)
     if result.confirmation_question:
         print("Needs confirmation:", result.confirmation_question)

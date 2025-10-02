@@ -56,14 +56,14 @@ class PromptUnderstandingLayer:
     Simple layer to understand user prompts with context
     """
     
-    def __init__(self, api_key: str = None):
+    def __init__(self, user_prompt, context,  api_key: str = None):
         """Initialize with OpenAI API key"""
+        self.user_prompt= user_prompt
+        self.context = context
         self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         
     def understand(
         self, 
-        user_prompt: str, 
-        context: List[Dict] = None,
         model: str = "gpt-3.5-turbo"
     ) -> SimplePromptUnderstanding:
         """
@@ -79,7 +79,7 @@ class PromptUnderstandingLayer:
         """
         
         # Build the analysis prompt
-        analysis_prompt = self._build_prompt(user_prompt, context)
+        analysis_prompt = self._build_prompt(self.user_prompt, self.context)
         
         try:
             # Call OpenAI
@@ -110,7 +110,7 @@ class PromptUnderstandingLayer:
             # Return basic understanding on error
             return SimplePromptUnderstanding({
                 "intent": "unknown",
-                "meaning": user_prompt,
+                "meaning": self.user_prompt,
                 "needs_clarification": True,
                 "clarification_question": "Could you please clarify your request?"
             })
@@ -118,18 +118,11 @@ class PromptUnderstandingLayer:
     def _build_prompt(self, user_prompt: str, context: List[Dict]) -> str:
         """Build the analysis prompt"""
         
-        context_str = ""
-        if context:
-            context_str = "Previous conversation:\n"
-            for msg in context[-5:]:  # Last 5 messages for context
-                role = msg.get("role", "unknown")
-                content = msg.get("content", "")
-                context_str += f"{role}: {content}\n"
         
         return f"""
                 Analyze this user prompt considering the conversation context.
 
-                {context_str}
+                {context}
 
                 Current user prompt: "{user_prompt}"
 

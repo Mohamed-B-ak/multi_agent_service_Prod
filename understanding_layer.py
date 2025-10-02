@@ -18,7 +18,6 @@ load_dotenv()
 # Configuration
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
-MONGO_URI = os.getenv("MONGO_DB_URI", "mongodb://localhost:27017")
 
 
 @dataclass
@@ -44,7 +43,6 @@ class IntelligenceResponse:
     confirmation_question: Optional[str]
     processing_time: float
     method_used: str
-    total_cost: float
     semantic_rewrite: Optional[str] = None
     lang: Optional[str] = "en"
 
@@ -57,9 +55,6 @@ class SimplifiedIntelligenceLayer:
     def __init__(self):
         # OpenAI Client
         self.client = OpenAI(api_key=OPENAI_API_KEY)
-
-        # Storage connections
-        self._init_storage()
 
         # Agent capabilities
         self.agent_capabilities = {
@@ -89,27 +84,14 @@ class SimplifiedIntelligenceLayer:
             },
         }
 
-        # In-memory fallback
-        self.memory_storage = {
-            "contexts": {},
-            "conversations": []
-        }
 
-    def _init_storage(self):
-        """تهيئة MongoDB (اختياري)"""
-        try:
-            from pymongo import MongoClient
-            self.mongo_client = MongoClient(MONGO_URI)
-            self.db = self.mongo_client["intelligence_db"]
-        except Exception as e:
-            print(f"⚠️ Mongo init failed: {e}")
-            self.db = None
 
     async def process(
         self,
         user_input: str,
         user_email: str,
         redis_db,
+        context,
         session_id: Optional[str] = None,
         use_gpt4: bool = False,
     ) -> IntelligenceResponse:
@@ -117,9 +99,6 @@ class SimplifiedIntelligenceLayer:
         start_time = datetime.now()
 
         try:
-            # 1. جلب السياق
-            context = await self._fetch_context(user_email, redis_db, session_id)
-
             # 2. بناء البرومبت
             smart_prompt = self._build_smart_prompt(user_input, context)
 
@@ -145,11 +124,14 @@ class SimplifiedIntelligenceLayer:
 
             # 4. معالجة الرد
             content = response.choices[0].message.content
+            print("//////////////////////////////////////////////////////////////////////")
+            print(content)
+            print("//////////////////////////////////////////////////////////////////////")
             result = self._parse_response(content)
 
             # 5. حساب التكلفة والوقت
             processing_time = (datetime.now() - start_time).total_seconds()
-            cost = self._calculate_cost(model, dict(response.usage))
+
 
             # 6. بناء الرد
             intelligence_response = IntelligenceResponse(
@@ -159,8 +141,8 @@ class SimplifiedIntelligenceLayer:
                 entities=result.get("entities", {}),
                 urgency=result.get("urgency", "normal"),
                 user_context_summary=result.get("user_context_summary", ""),
-                relevant_history=context.get("history", []),
-                user_preferences=context.get("preferences", {}),
+                relevant_history="None",
+                user_preferences="None",
                 recommended_agent=result.get("recommended_agent", "CustomerServiceAgent"),
                 supporting_agents=result.get("supporting_agents", []),
                 execution_mode=result.get("execution_mode", "single"),
@@ -175,12 +157,8 @@ class SimplifiedIntelligenceLayer:
                 lang=result.get("lang", "en"),
                 processing_time=processing_time,
                 method_used=model,
-                total_cost=cost,
             )
-
-            # 7. حفظ التفاعل
-            await self._save_interaction(user_email, user_input, intelligence_response)
-
+            
             return intelligence_response
 
         except Exception as e:
@@ -204,81 +182,6 @@ class SimplifiedIntelligenceLayer:
                 except:
                     pass
             return self._create_default_result()
-
-    async def _fetch_context(self, user_email: str, redis_db, session_id: Optional[str]) -> Dict:
-        """جلب السياق"""
-        context = {
-            "user_email": user_email,
-            "history": [],
-            "preferences": {"language": "ar", "communication_style": "formal"},
-            "patterns": {}
-        }
-
-        try:
-            if self.db is not None:
-                conversations = list(
-                    self.db.conversations.find(
-                        {"user_email": user_email},
-                        {"user_input": 1, "intent": 1, "timestamp": 1, "_id": 0}
-                    ).sort("timestamp", -1).limit(5)
-                )
-                for conv in conversations:
-                    if "timestamp" in conv and hasattr(conv["timestamp"], "isoformat"):
-                        conv["timestamp"] = conv["timestamp"].isoformat()
-                context["history"] = conversations
-
-                profile = self.db.profiles.find_one({"email": user_email})
-                if profile:
-                    context["preferences"] = {
-                        "language": profile.get("language_preference", "ar"),
-                        "communication_style": profile.get("communication_style", "formal")
-                    }
-            else:
-                if user_email in self.memory_storage["contexts"]:
-                    context = self.memory_storage["contexts"][user_email]
-        except Exception as e:
-            print(f"⚠️ Context fetch warning: {e}")
-
-        return context
-
-    async def _save_interaction(self, user_email: str, user_input: str, response: IntelligenceResponse):
-        """حفظ التفاعل"""
-        interaction = {
-            "user_email": user_email,
-            "timestamp": datetime.now(),
-            "user_input": user_input,
-            "intent": response.intent,
-            "confidence": response.confidence,
-            "agent_used": response.recommended_agent,
-            "processing_time": response.processing_time,
-            "method": response.method_used,
-            "cost": response.total_cost
-        }
-
-        try:
-            if self.db is not None:
-                self.db.conversations.insert_one(interaction.copy())
-            else:
-                self.memory_storage["conversations"].append(interaction)
-
-                if user_email not in self.memory_storage["contexts"]:
-                    self.memory_storage["contexts"][user_email] = {
-                        "history": [],
-                        "preferences": {},
-                        "patterns": {}
-                    }
-
-                self.memory_storage["contexts"][user_email]["history"].append({
-                    "user_input": user_input,
-                    "intent": response.intent,
-                    "timestamp": interaction["timestamp"].isoformat()
-                })
-
-                if len(self.memory_storage["contexts"][user_email]["history"]) > 5:
-                    self.memory_storage["contexts"][user_email]["history"] = \
-                        self.memory_storage["contexts"][user_email]["history"][-5:]
-        except Exception as e:
-            print(f"⚠️ Save warning: {e}")
 
     def _build_smart_prompt(self, user_input: str, context: Dict) -> str:
         """بناء برومبت ذكي"""
@@ -327,21 +230,6 @@ class SimplifiedIntelligenceLayer:
                 }}
                 """
 
-
-    def _calculate_cost(self, model: str, usage: Dict) -> float:
-        """حساب التكلفة"""
-        costs = {
-            "gpt-3.5-turbo": {"prompt": 0.001, "completion": 0.002},
-            "gpt-4": {"prompt": 0.03, "completion": 0.06},
-        }
-
-        model_costs = costs.get(model, costs["gpt-3.5-turbo"])
-        prompt_tokens = usage.get("prompt_tokens", 0) / 1000
-        completion_tokens = usage.get("completion_tokens", 0) / 1000
-
-        total = (prompt_tokens * model_costs["prompt"]) + (completion_tokens * model_costs["completion"])
-        return round(total, 6)
-
     def _create_default_result(self) -> Dict:
         """نتيجة افتراضية"""
         return {
@@ -387,17 +275,16 @@ class SimplifiedIntelligenceLayer:
             processing_time=processing_time,
             method_used="error",
             lang="en",
-            total_cost=0.0,
         )
 
 
 # ============== MAIN TEST ==============
 
-async def main(user_email, user_input, redis_db):
+async def main(user_email, user_input, redis_db, context):
     """اختبار الطبقة الذكية"""
     intelligence = SimplifiedIntelligenceLayer()
     try:
-        return await intelligence.process(user_input, user_email, redis_db, use_gpt4=False)
+        return await intelligence.process(user_input, user_email, redis_db, context, use_gpt4=False)
     except Exception as e:
         print(f"❌ Error: {e}")
         return "An error occurred when we tried to execute the user input"
@@ -412,46 +299,46 @@ if __name__ == "__main__":
 
     # قائمة الطلبات للتجربة (20 مثال متنوع)
     test_inputs = [
-"أريد إضافة عميل جديد للنظام.",
+                    "أريد إضافة عميل جديد للنظام.",
 
-"سجّل عميل جديد اسمه أحمد علي.",
+                    "سجّل عميل جديد اسمه أحمد علي.",
 
-"أضف العميل محمد حسن إلى قاعدة البيانات.",
+                    "أضف العميل محمد حسن إلى قاعدة البيانات.",
 
-"أريد تسجيل بيانات عميل جديد.",
+                    "أريد تسجيل بيانات عميل جديد.",
 
-"كيف يمكنني إضافة عميل جديد؟",
+                    "كيف يمكنني إضافة عميل جديد؟",
 
-"أدخل عميل جديد برقم هاتف 0501234567.",
+                    "أدخل عميل جديد برقم هاتف 0501234567.",
 
-"أريد إنشاء حساب لعميل جديد.",
+                    "أريد إنشاء حساب لعميل جديد.",
 
-"أضف هذا العميل: الاسم خالد، البريد khaled@test.com",
+                    "أضف هذا العميل: الاسم خالد، البريد khaled@test.com",
 
-"سجّل عميل جديد عندنا.",
+                    "سجّل عميل جديد عندنا.",
 
-"هل يمكنك إضافة عميل جديد للنظام؟",
+                    "هل يمكنك إضافة عميل جديد للنظام؟",
 
-"أدخل بيانات عميل جديد للشركة.",
+                    "أدخل بيانات عميل جديد للشركة.",
 
-"أريد إضافة زبون جديد الآن.",
+                    "أريد إضافة زبون جديد الآن.",
 
-"سجّل عميل جديد اسمه سارة محمد.",
+                    "سجّل عميل جديد اسمه سارة محمد.",
 
-"أضف عميل جديد مع البريد الإلكتروني sara@test.com.",
+                    "أضف عميل جديد مع البريد الإلكتروني sara@test.com.",
 
-"كيف أضيف عميل جديد لقاعدة العملاء؟",
+                    "كيف أضيف عميل جديد لقاعدة العملاء؟",
 
-"أريد إضافة عميل باسم شركة المستقبل.",
+                    "أريد إضافة عميل باسم شركة المستقبل.",
 
-"رجاءً أضف عميل جديد برقم 12345.",
+                    "رجاءً أضف عميل جديد برقم 12345.",
 
-"أدخل عميل جديد في النظام الإداري.",
+                    "أدخل عميل جديد في النظام الإداري.",
 
-"سجّل عميل جديد مع التفاصيل التالية: الاسم: أحمد، الهاتف: 0555555555.",
+                    "سجّل عميل جديد مع التفاصيل التالية: الاسم: أحمد، الهاتف: 0555555555.",
 
-"أريد إنشاء سجل جديد لعميل في النظام.",
-]
+                    "أريد إنشاء سجل جديد لعميل في النظام.",
+                ]
 
 
     # Redis client (محلي أو من env)
@@ -459,11 +346,11 @@ if __name__ == "__main__":
         os.getenv("REDIS_URL", "redis://localhost:6379"),
         decode_responses=True,
     )
-
+    context = []
     async def run_tests():
         for i, user_prompt in enumerate(test_inputs, start=1):
             print(f"\n====== الطلب رقم {i}: {user_prompt} ======")
-            result = await main(user_email, user_prompt, redis_client)
+            result = await main(user_email, user_prompt, redis_client, context)
             print("************************************")
             #print(result)
             print("##########################################")
