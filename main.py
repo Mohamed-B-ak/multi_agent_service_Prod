@@ -374,7 +374,7 @@ async def process_prompt(request: UserPromptRequest):
     """
     start = time.time()
     user_prompt = request.prompt
-    user_email = "mohamed.akaaaq@d10.sa"
+    user_email = "mohamed.ak@d10.sa"
     llm_obj = get_llm()
     
     # 🆕 استيراد Manager Brain
