@@ -59,7 +59,7 @@ def sales_agent(llm_obj, user_email, user_language="en") -> Agent:
         "You can send campaign content via WhatsApp or Email. "
         f"⚠️ Respond ONLY in the user's language: {user_language}. "
         f"Always restrict database queries to the user's email: {user_email}, "
-        "by filtering against fields like `createdBy`, `createdByEmail`, `userEmail`. "
+        "by filtering against fields like `userEmail`. "
         f"\n\nAvailable collections and fields: {collections_info}. "
         "Always choose the most relevant collection. Do NOT invent names."
         f"\n\nSales duties: generate persuasive messages, email campaigns, "

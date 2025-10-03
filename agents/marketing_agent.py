@@ -19,7 +19,7 @@ from Tools.email_tools import MailerSendTool
 from dotenv import load_dotenv
 load_dotenv()
 
-def marketing_agent(llm_obj, user_email, user_language="en") -> Agent:
+def marketing_agent(llm_obj, user_email, user_language) -> Agent:
     """
     Marketing agent that performs MongoDB CRUD/aggregation operations,
     prepares marketing campaign content, segments customers,
@@ -57,7 +57,7 @@ def marketing_agent(llm_obj, user_email, user_language="en") -> Agent:
         "You can send content via WhatsApp or Email. "
         f"⚠️ Respond ONLY in the user's language: {user_language}. "
         f"Always restrict database queries to the user's email: {user_email}, "
-        "by filtering against fields like `createdBy`, `createdByEmail`, `userEmail`. "
+        "by filtering against fields like `userEmail`. "
         f"\n\nAvailable collections and fields: {collections_info}. "
         "Always choose the most relevant collection. Do NOT invent names."
         f"\n\nMarketing duties: create engaging campaigns, segment audiences, "

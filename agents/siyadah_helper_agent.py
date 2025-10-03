@@ -2,7 +2,7 @@
 from crewai import Agent
 from Tools.siyadah_helper_tool import SiyadahHelperTool
 
-def siyadah_helper_agent(llm_obj, user_language="en") -> Agent:
+def siyadah_helper_agent(llm_obj, user_email, user_language) -> Agent:
     """
     Siyadah helper agent that answers questions about the Siyadah platform
     using the knowledge base, in the user's language.

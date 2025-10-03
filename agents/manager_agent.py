@@ -1,6 +1,6 @@
 from crewai import Agent
 
-def manager_agent(llm_obj, user_language="en") -> Agent:
+def manager_agent(llm_obj, user_language) -> Agent:
     return Agent(
         role="Strategic Operations Coordinator & Workflow Orchestrator",
         goal=(

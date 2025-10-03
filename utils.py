@@ -87,43 +87,68 @@ def respond_to_user(prompt: str, context: str) -> str:
 
 
 from openai import OpenAI
-
+import re
 client = OpenAI()
 
 def check_required_data(prompt: str, context: list) -> dict:
-    """
-    Use OpenAI API to decide if user prompt + context contains enough information.
-    Returns JSON { need_details: "yes"/"no", message: str }
-    
-    Args:
-        prompt (str): Latest user input.
-        context (list): Conversation history [{'role': 'system'|'user', 'content': str}, ...].
-        required_fields (list): List of required fields.
-    """
-    required = ["customer_name", "customer_phone", "customer_email", "campaign_content", "channel_type"]
     system_prompt = """
-    أنت مساعد ذكي وظيفتك أن تتحقق إذا كان طلب المستخدم مكتمل البيانات أم لا.
-    يجب أن تعيد دائمًا JSON فقط بهذا الشكل:
-    {
-        "need_details": "yes" أو "no",
-        "message": "رسالة قصيرة"
-    }
+                    You are an intelligent assistant. Your job is to check whether the user's request contains enough required information or not.
+                    You must always return JSON only in this format:
 
-    القواعد:
-    - إذا لم يتوفر كل المطلوب (مثل اسم العميل، رقم الهاتف، البريد الإلكتروني، نوع الحملة، نوع القناة)
-      أرجع need_details = "yes" مع رسالة مثل "من فضلك أعطني مزيد من التفاصيل".
-    - إذا كانت كل البيانات موجودة ضمن الحوار أو الـ context،
-      أرجع need_details = "no" مع رسالة تأكيد.
-    - لا تُرجع أي شيء غير الـ JSON.
-    """
+                    {
+                        "need_details": "yes" or "no",
+                        "message": "short message in the user's language"
+                    }
+
+                    Rules:
+
+                    - Add Customer:
+                    Must include BOTH "customer name" AND (at least "phone" OR "email").
+
+                    - Delete Customer:
+                    Must include at least ONE identifier: "name" OR "phone" OR "email".
+                    - Prepare Campaign: 
+                    Must include 
+                        * Channel → whatsapp OR email (if not exist in Conversation history)
+                        * Campaign type → welcome, marketing, reminder, offer, discount, etc... (if not exist in Conversation history)
+                    - Send Campaign:
+                    Must include:
+                        * Channel → whatsapp OR email (if not exist in Conversation history)
+                        * Campaign type → welcome, marketing, reminder, offer, discount, etc... (if not exist in Conversation history)
+                        * Target → single customer OR bulk (if not exist in Conversation history)
+
+                    - General Questions (e.g., "كيف يمكن للنظام مساعدتي", "What can you do?"):
+                    → These do NOT require details.
+                    → Return need_details = "no" with a helpful message describing the system capabilities.
+
+                    Validation Rules:
+                    - If required fields are missing for action requests, return need_details = "yes" with a short message asking for missing info.
+                    - If request is a general question or enough fields are provided, return need_details = "no".
+                    - Always write the message in the same language as the user's latest prompt.
+                    - Only return JSON.
+                    """
+
 
     response = client.chat.completions.create(
-        model="gpt-3.5-turbo",   # أو "gpt-4o-mini"
+        model="gpt-4o",
         messages=[
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"الحوار:\n{context}\n\nآخر طلب: {prompt}\n\nالحقول المطلوبة: {required}"}
+            {"role": "user", "content": f"Conversation:\n{context}\n\nLatest request: {prompt}"}
         ],
         temperature=0
     )
-    return json.loads(response.choices[0].message.content)
 
+    print(response)
+    raw_output = response.choices[0].message.content.strip()
+    print(raw_output)
+    # 🔹 Remove Markdown code fences if present
+    if raw_output.startswith("```"):
+        raw_output = re.sub(r"^```(?:json)?|```$", "", raw_output, flags=re.MULTILINE).strip()
+
+    try:
+        return json.loads(raw_output)
+    except json.JSONDecodeError:
+        return {
+            "need_details": "yes",
+            "message": "⚠️ Failed to parse response. Please try again."
+        }

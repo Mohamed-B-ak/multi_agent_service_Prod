@@ -1030,9 +1030,9 @@ def get_response(message):
         return qa_pairs[message_lower]
     
     # Partial match (for longer sentences containing the key phrase)
-    for key, response in qa_pairs.items():
-        if key in message_lower:
-            return response
+    #for key, response in qa_pairs.items():
+        #if key in message_lower:
+            #return response
     
     return None
 

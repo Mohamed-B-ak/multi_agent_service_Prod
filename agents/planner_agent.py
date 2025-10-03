@@ -49,49 +49,44 @@ def planner(user_prompt: str, context: List[Dict] = None, llm_object = None) -> 
 
     # Create the task
     task = Task(
-        description=f"""{context_str}
-        
-        Current Request: '{user_prompt}'
-        
-        IMPORTANT: Use the conversation context above to understand what the user means.
-        - If user references pronouns like "them" / "هؤلاء" / "هم", resolve it from context (e.g., last retrieved customers).
-        - If context is missing, assume clarification is needed (but do NOT hallucinate).
-        - If the request can't be in sub tasks just return ther user prompt 
+    description=f"""{context_str}
+    
+    Current Request: '{user_prompt}'
+    
+    IMPORTANT: Use the conversation context above to understand what the user means.
+    - If user references pronouns like "them" / "هؤلاء" / "هم", resolve it from context (e.g., last retrieved customers).
+    - If context is missing, assume clarification is needed (but do NOT hallucinate).
+    - If the request can't be in sub tasks just return the user prompt 
 
-        STRICT RULES - DO NOT ADD TASKS THE USER DIDN'T REQUEST:
-        1. If user says "prepare/جهز" or "draft/اكتب" = ONLY create content, NO sending
-        2. If user says "send/أرسل" = Include sending steps
-        3. If user says "create campaign/حملة" without "send" = ONLY prepare, NO sending
-        4. NEVER add helpful extras like "send" when not requested
-        5. If the request can't be in sub tasks just return the user prompt 
+    STRICT RULES - DO NOT ADD TASKS THE USER DIDN'T REQUEST:
+    1. If user says "prepare/جهز" or "draft/اكتب" = ONLY create content, NO sending
+    2. If user says "send/أرسل" = Include sending steps
+    3. If user says "create campaign/حملة" without "send" = ONLY prepare, NO sending
+    4. NEVER add helpful extras like "send" when not requested
+    5. If the request can't be in sub tasks just return the user prompt 
 
-        Critical Rules for References:
-        - If sending to "them" or specific people from context, FIRST retrieve their contact information
-        - If preparing content for general use (no specific recipients), NO need to get contacts
+    Critical Rules for References:
+    - If sending to "them" or specific people from context, FIRST retrieve their contact information
+    - If preparing content for general use (no specific recipients), NO need to get contacts
 
-        Break down the request into subtasks and output a simple numbered list like:
-        1. [Action] - [Who should do it]
-        2. [Action] - [Who should do it]
+    Break down the request into subtasks and output a simple numbered list like:
+    1. [Action] - [Which Agent should do it]
+    2. [Action] - [Which Agent should do it]
 
-        Consider these available agents:
-        - Knowledge-Based Content Agent (creates emails, WhatsApp messages, call scripts using company knowledge - NO placeholders ever)
-        - Database Agent (MongoDB CRUD operations, gets customer data)
-        - Email Agent (sends emails via MailerSend)
-        - WhatsApp Agent (sends WhatsApp messages)
-        - CRM Agent (extract/display customers/contacts saved in the CRM)
-        - Caller Agent (makes phone calls with scripts)
-        - File Creation Agent (creates PDF/Word/Excel files)
-        - Web Analyser Agent (scrapes and analyzes websites)
-        - Siyadah Helper Agent (answers platform questions)
+    Consider these available agents:
+    - Marketing Agent → prepares campaigns, segments audiences, outreach via WhatsApp/Email
+    - Sales Agent → CRM tasks, personalized sales campaigns, WhatsApp/Email follow-ups
+    - Unified Customer Service Agent → handles customer queries, generates contextual replies, sends via WhatsApp/Email
+    - Siyadah Helper Agent → answers questions about the Siyadah platform
 
-        IMPORTANT NOTES:
-        - Content creation is now handled by ONE agent: Knowledge-Based Content Agent
-        - This agent automatically creates content with knowledge base integration
-        - No separate enhancement step needed - content is ready immediately
-        - Content will NEVER have placeholders like [name] or dummy data""",
-        expected_output="A numbered list of subtasks with responsible agents based on the context and request",
-        agent=decomposer
+    IMPORTANT NOTES:
+    - Always assign subtasks ONLY to these agents.
+    - Do not invent new agents or roles.
+    - Content will NEVER have placeholders like [name] or dummy data.""",
+    expected_output="A numbered list of subtasks with responsible agents based on the context and request",
+    agent=decomposer
     )
+
 
     
     # Create and run the crew

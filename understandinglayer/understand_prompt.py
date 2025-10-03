@@ -131,7 +131,10 @@ class PromptUnderstandingLayer:
                 1. INTENT - What does the user want to do?
                 - Categories: create, read, update, delete, send, help, greeting, complaint, inquiry, campaign
 
-                2. MEANING - What does the user actually mean in simple terms?
+                2. MEANING - A full actionable interpretation of what the user actually wants, 
+                combining the current prompt with context and extracted entities.  
+                - This should read like a clear instruction including details.  
+                - Example: "The user wants to add a customer with name Mohamed, phone +21653844063, and email mohamed@d10.sa."
 
                 3. TONE - What's the emotional tone?
                 - Options: formal, casual, urgent, frustrated, happy, neutral, polite
@@ -162,7 +165,7 @@ class PromptUnderstandingLayer:
                 (e.g., gather data, perform actions, multi-step tasks, sending email, using WhatsApp, 
                 asking about data, asking for help), 
                 or is it simple enough for a direct response?  
-                
+
                 - Use `"simple"` ONLY for greetings, farewells, or very short conversational phrases 
                 like "hello", "hi", "goodbye", "thanks".  
                 - For ALL other intents (create, read, update, delete, send, help, complaint, inquiry, campaign), 
@@ -174,9 +177,9 @@ class PromptUnderstandingLayer:
 
                 Return ONLY a JSON object:
                 {{
-                    "user_input" : "the user input"
+                    "user_input" : "the user input",
                     "intent": "the main intent",
-                    "meaning": "clear explanation of what user wants",
+                    "meaning": "full actionable interpretation including entities and context",
                     "tone": "detected tone",
                     "entities": {{"key": "value"}},
                     "language": "ar/en/fr",
@@ -189,6 +192,7 @@ class PromptUnderstandingLayer:
                     "confidence": 0.0-1.0
                 }}
                 """
+
 
 
     def _parse_json(self, content: str) -> dict:
