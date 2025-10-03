@@ -76,7 +76,6 @@
     </style>
 </head>
 <body>
-
     <h2>Chat with the AI Backend</h2>
 
     <div id="chat-container"></div>
@@ -85,66 +84,59 @@
     <button id="send-button">Send</button>
 
     <script>
-        // Send user input to backend and display the response
+        // Detect environment: use localhost in dev, Render URL in prod
+        const apiBaseUrl = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+            ? "http://127.0.0.1:8000"
+            : "https://your-app-name.onrender.com"; // 🔴 replace with your Render backend URL
+
         document.getElementById('send-button').addEventListener('click', async () => {
             const userMessage = document.getElementById('message-input').value;
             if (userMessage) {
-                appendMessage('user', userMessage);  // Append the user's message
+                appendMessage('user', userMessage);
 
                 try {
-                    const response = await fetch('http://127.0.0.1:8000/process-prompt/', {
+                    const response = await fetch(`${apiBaseUrl}/process-prompt/`, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ prompt: userMessage })
                     });
 
                     const data = await response.json();
-                    const botMessage = data.final_output || 'Sorry, I didn\'t understand that.';
+                    const botMessage = data.final_output || "Sorry, I didn't understand that.";
 
-                    appendMessage('bot', formatResponse(botMessage));  // Append the bot's response
+                    appendMessage('bot', formatResponse(botMessage));
                 } catch (error) {
                     appendMessage('bot', 'An error occurred. Please try again.');
                     console.error('Error:', error);
                 }
 
-                // Clear the input field
                 document.getElementById('message-input').value = '';
             } else {
-                // Display error if input is empty
                 appendMessage('bot', 'Please enter a valid prompt.');
             }
         });
 
-        // Function to append messages to the chat window
         function appendMessage(sender, message) {
             const chatContainer = document.getElementById('chat-container');
             const messageElement = document.createElement('div');
             messageElement.classList.add(sender === 'user' ? 'user-message' : 'bot-message');
 
             if (sender === 'bot') {
-                // Render code blocks if present
                 messageElement.innerHTML = message;
             } else {
-                // User messages stay plain text
                 messageElement.textContent = message;
             }
 
             chatContainer.appendChild(messageElement);
-            chatContainer.scrollTop = chatContainer.scrollHeight;  // Scroll to bottom
+            chatContainer.scrollTop = chatContainer.scrollHeight;
         }
 
-        // Format the response for display (supports Markdown-style ``` blocks)
         function formatResponse(response) {
             try {
                 let formatted = response;
-
-                // Convert triple backtick code blocks into <pre><code>
                 formatted = formatted.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
                     return `<pre><code>${escapeHtml(code)}</code></pre>`;
                 });
-
                 return formatted;
             } catch (e) {
                 console.error('Error formatting response:', e);
@@ -152,7 +144,6 @@
             }
         }
 
-        // Escape HTML entities inside code to prevent rendering issues
         function escapeHtml(unsafe) {
             return unsafe
                 .replace(/&/g, "&amp;")
@@ -162,6 +153,5 @@
                 .replace(/'/g, "&#039;");
         }
     </script>
-
 </body>
 </html>
