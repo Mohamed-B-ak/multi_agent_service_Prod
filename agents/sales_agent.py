@@ -1,7 +1,13 @@
-import os
-from crewai import Agent, LLM
+"""
+Flexible Sales Agent - Smart and Adaptive
+يتعامل بذكاء مع الطلبات ويأخذ المبادرة عند الحاجة
+"""
 
-# 🔹 Database tools
+import os
+from crewai import Agent
+from datetime import datetime
+
+# Database tools
 from Tools.db_tools import (
     MongoDBConnection,
     MongoDBListCollectionsTool,
@@ -11,83 +17,112 @@ from Tools.db_tools import (
     MongoDBReadDataTool,
     MongoDBCountDocumentsTool
 )
+
+# Communication tools
 from Tools.whatsApp_tools import WhatsAppTool
 from Tools.email_tools import MailerSendTool
 
-
 from dotenv import load_dotenv
-import os
-
 load_dotenv()
+
 
 def sales_agent(llm_obj, user_email, user_language="en") -> Agent:
     """
-    Sales agent that performs MongoDB CRUD/aggregation operations,
-    prepares sales campaign content, and sends it via WhatsApp or Email.
-    Ensures all outputs and queries are in the user's language and 
-    restricted to the user's email context.
+    Flexible Sales Agent that adapts to context and takes initiative
     """
-
+    
     # Database connection
     connection = MongoDBConnection(
         connection_string=os.getenv("MONGO_DB_URI"),
         db_name=os.getenv("DB_NAME")
     )
-
-    # Database Tools
+    
+    # All tools available
     list_collections_tool = MongoDBListCollectionsTool(connection)
     create_document_tool = MongoDBCreateDocumentTool(connection)
     update_document_tool = MongoDBUpdateDocumentTool(connection)
     delete_document_tool = MongoDBDeleteDocumentTool(connection)
     read_data_tool = MongoDBReadDataTool(connection)
     count_documents_tool = MongoDBCountDocumentsTool(connection, user_email)
-
-    # Sales Tools
-    # Sales Tools
     whatsapp_tool = WhatsAppTool(user_email=user_email)
     email_tool = MailerSendTool(user_email=user_email)
+    
+    # Get collections info
+    try:
+        collections_info = list_collections_tool._run()
+    except:
+        collections_info = "Collections available: customers, deals, campaigns, messages"
+    
+    # Flexible and intelligent goal
+    goal_text = f"""
+                You are a Sales CRM Agent. Execute tasks efficiently and respond briefly in {user_language}.
 
-   
+                CORE RULES:
+                1. Add/Update/Delete customers as requested
+                2. Search and retrieve data when needed
+                3. Only send messages when EXPLICITLY asked to send
+                4. Respond with brief confirmations
 
-    # Collections info
-    collections_info = list_collections_tool._run()
+                RESPONSE FORMAT:
+                - For adds: "✅ تم إضافة [name]" or "✅ Added [name]"
+                - For updates: "✅ تم التحديث" or "✅ Updated"
+                - For searches: Show the data directly
+                - For errors: "❌ [brief error]"
 
-    # Goal
-    goal_text = (
-        "As a Sales Agent, perform MongoDB Atlas operations (list collections, "
-        "CRUD, aggregations) AND prepare personalized sales campaign content. "
-        "You can send campaign content via WhatsApp or Email. "
-        f"⚠️ Respond ONLY in the user's language: {user_language}. "
-        f"Always restrict database queries to the user's email: {user_email}, "
-        "by filtering against fields like `userEmail`. "
-        f"\n\nAvailable collections and fields: {collections_info}. "
-        "Always choose the most relevant collection. Do NOT invent names."
-        f"\n\nSales duties: generate persuasive messages, email campaigns, "
-        "WhatsApp outreach, and ensure professional tone."
-    )
+                DO NOT:
+                - Create campaigns unless asked
+                - Write welcome messages unless asked
+                - Add extra suggestions unless asked
 
-    # Backstory
-    backstory_text = (
-        "You are a Sales Agent who specializes in CRM and outreach automation. "
-        "You understand MongoDB Atlas and can perform CRUD and aggregation queries, "
-        "but you are also an expert in creating and sending marketing campaigns. "
-        "You craft high-conversion content, then deliver it to prospects through "
-        "WhatsApp or Email using prepared tools. "
-        f"All outputs must strictly be in {user_language}, concise and accurate. "
-        "Database operations must always be scoped to the user’s email context."
-    )
-
+                Database: {collections_info}
+                User scope: {user_email}
+                Language: {user_language}
+                """
+    
+    # Intelligent backstory
+    backstory_text = f"""
+    You are a Senior Sales AI with deep understanding of CRM operations and sales psychology.
+    
+    Your philosophy: "Anticipate needs, provide value, be genuinely helpful."
+    
+    You understand that users often:
+    - Don't specify everything they need
+    - Assume you remember context
+    - Want quick, smart solutions
+    - Appreciate proactive suggestions
+    
+    Your approach is:
+    • INTELLIGENT: Read between the lines
+    • PROACTIVE: Fetch data before being asked
+    • COMPREHENSIVE: Complete tasks fully
+    • CONTEXTUAL: Use conversation history wisely
+    • HELPFUL: Suggest logical next steps
+    
+    Examples of your intelligence:
+    - User mentions a name → You search for that customer
+    - User asks about sales → You fetch recent metrics
+    - User wants to message someone → You get their contact info
+    - User seems frustrated → You provide solutions, not just data
+    
+    You've managed 100,000+ customer interactions and learned that being
+    genuinely helpful beats being strictly literal every time.
+    
+    Language: Always respond in {user_language}
+    Context: Use it wisely to provide better service
+    """
+    
     return Agent(
-        name="SalesAgent",
-        role="Sales & CRM Automation Specialist",
+        name="FlexibleSalesAgent",
+        role="Intelligent Sales & CRM Assistant",
         goal=goal_text,
         backstory=backstory_text,
         tools=[
+            # Full toolkit available
             list_collections_tool,
             create_document_tool,
+            read_data_tool,
             update_document_tool,
             delete_document_tool,
-            read_data_tool,
             count_documents_tool,
             whatsapp_tool,
             email_tool
@@ -95,22 +130,66 @@ def sales_agent(llm_obj, user_email, user_language="en") -> Agent:
         allow_delegation=False,
         llm=llm_obj,
         verbose=True,
+        max_iter=5,  # Allow more iterations for complex tasks
+        memory=True,  # Remember context within the task
     )
 
 
+# Test scenarios showing flexibility
 if __name__ == "__main__":
-    # 🔹 Setup your LLM
+    from crewai import LLM
+    
+    print("🧪 Testing Flexible Sales Agent\n")
+    
+    test_scenarios = [
+        {
+            "prompt": "أضف محمد",
+            "expected_behavior": "Adds Mohamed, might ask for phone/email, suggests next steps"
+        },
+        {
+            "prompt": "How are my customers in Dubai?",
+            "expected_behavior": "Fetches Dubai customers, shows stats, recent activities"
+        },
+        {
+            "prompt": "Send a message to the new customer",
+            "expected_behavior": "Finds the most recent customer, prepares appropriate message"
+        },
+        {
+            "prompt": "What happened yesterday?",
+            "expected_behavior": "Fetches yesterday's activities, new customers, deals"
+        },
+        {
+            "prompt": "احذف آخر عميل",
+            "expected_behavior": "Finds and deletes the most recent customer after confirmation"
+        }
+    ]
+    
+    # Initialize
     llm = LLM(
         model="gpt-3.5-turbo",
         api_key=os.getenv("OPENAI_API_KEY"),
-        temperature=0.1,
-        max_tokens=500,
+        temperature=0.3,  # Bit more creative
+        max_tokens=1000,  # More room for comprehensive responses
     )
-    # 🔹 Create the agent
-    agent = sales_agent(llm, user_email="mohamed.ak@d10.sa", user_language="en")
-
-    # 🔹 Run the agent with a request
-    result = agent.kickoff("Create a WhatsApp campaign for new leads in Dubai about our new product launch, and give me the phone numbers of the client who has thi email mohamed.ak@d10.sa and finally send a whatsApp message to mohamed .")
-
-    print("\n--- Agent Output ---")
-    print(result.raw)
+    
+    # Create agent
+    agent = sales_agent(llm, user_email="test@example.com", user_language="ar")
+    
+    print("📊 Agent Configuration:")
+    print(f"   Tools: {len(agent.tools)} tools available")
+    print(f"   Memory: Enabled")
+    print(f"   Max iterations: 5")
+    print(f"   Approach: Flexible & Intelligent")
+    
+    print("\n💡 Example Behaviors:")
+    for scenario in test_scenarios:
+        print(f"\n   Input: '{scenario['prompt']}'")
+        print(f"   Expected: {scenario['expected_behavior']}")
+    
+    print("\n✅ Flexible Sales Agent Ready!")
+    print("This agent will:")
+    print("- Fetch data proactively")
+    print("- Understand context")
+    print("- Complete tasks thoroughly")
+    print("- Suggest next steps")
+    print("- Be genuinely helpful")

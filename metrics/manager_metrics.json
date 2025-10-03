@@ -1,0 +1,32 @@
+{
+  "total_tasks": 8,
+  "completed_tasks": 7,
+  "failed_tasks": 1,
+  "agent_performance": {
+    "marketing": {
+      "tasks": 4,
+      "success": 4,
+      "failed": 0,
+      "total_time": 15.775496824863795
+    },
+    "sales": {
+      "tasks": 0,
+      "success": 0,
+      "failed": 0,
+      "total_time": 0
+    },
+    "customer_service": {
+      "tasks": 2,
+      "success": 2,
+      "failed": 0,
+      "total_time": 7.601089236045054
+    },
+    "siyadah_helper": {
+      "tasks": 2,
+      "success": 1,
+      "failed": 1,
+      "total_time": 3.7976977469586592
+    }
+  },
+  "saved_at": "2025-10-03T11:32:24.619171"
+}
