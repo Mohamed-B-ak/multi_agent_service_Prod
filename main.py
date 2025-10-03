@@ -384,16 +384,16 @@ async def process_prompt(request: UserPromptRequest):
     save_message(redis_client, user_email, "user", user_prompt)
 
     # Get chat history
-    from understandinglayer.simple_messages import get_response
-    try:
-        response = get_response(user_prompt)
-        if response:
-            save_message(redis_client, user_email, "system", response)
-            return JSONResponse(content={
-                "final_output": response,
-            })
-    except:
-        print("there is an error occured when we are trying to get reponse fromh e defined reponses ")
+    #from understandinglayer.simple_messages import get_response
+    #try:
+        #response = get_response(user_prompt)
+        #if response:
+            #save_message(redis_client, user_email, "system", response)
+            #return JSONResponse(content={
+                #"final_output": response,
+            #})
+    #except:
+        #print("there is an error occured when we are trying to get reponse fromh e defined reponses ")
     
     redis_context_window = get_messages(redis_client, user_email, limit=10)
 
@@ -403,6 +403,9 @@ async def process_prompt(request: UserPromptRequest):
     print("++++++++++++++++++++++++++++++++++++++++++++")
     print(understanding_res.to_dict())
     print("++++++++++++++++++++++++++++++++++++++++++++")
+    return JSONResponse(content={
+            "final_output": str(understanding_res.to_dict()) ,
+        })
     print(understanding_res.response_type)
     
     from utils import respond_to_user, check_required_data
@@ -434,7 +437,9 @@ async def process_prompt(request: UserPromptRequest):
     
     try:
         tasks = planner(clear_prompt, str(redis_context_window), llm_obj)
+        print("----------------------planner----------------------")
         print(tasks)
+        print("----------------------planner----------------------")
         print(type(tasks))
     except:
         tasks = clear_prompt
