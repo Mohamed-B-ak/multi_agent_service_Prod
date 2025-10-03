@@ -87,7 +87,7 @@
         // Detect environment: use localhost in dev, Render URL in prod
         const apiBaseUrl = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
             ? "http://127.0.0.1:8000"
-            : "https://your-app-name.onrender.com"; // 🔴 replace with your Render backend URL
+            : "https://multi-agent-whbj.onrender.com"; // 🔴 replace with your Render backend URL
 
         document.getElementById('send-button').addEventListener('click', async () => {
             const userMessage = document.getElementById('message-input').value;
