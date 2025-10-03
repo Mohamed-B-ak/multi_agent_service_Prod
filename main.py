@@ -33,6 +33,22 @@ os.makedirs(FOLDER_PATH, exist_ok=True)
 
 app = FastAPI()
 
+from fastapi.middleware.cors import CORSMiddleware
+
+origins = [
+    "https://multi-agent-whbj.onrender.com",  # your frontend
+    "http://localhost:8000",                  # local dev
+    "http://127.0.0.1:8000"
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,   # Or ["*"] to allow all
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 mongo_client = None
 db = None
 redis_client= None
