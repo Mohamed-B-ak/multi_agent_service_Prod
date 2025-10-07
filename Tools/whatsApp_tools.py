@@ -32,9 +32,16 @@ class WhatsAppTool(BaseTool):
         """Sync fallback: runs async code in a background thread"""
         try:
             future = _EXECUTOR.submit(lambda: asyncio.run(self._arun(to_number, message)))
-            return future.result()
+            result = future.result()
+            # ✅ Pass through if _arun() already returns structured dict
+            if isinstance(result, dict):
+                return result
+
+            # ✅ Wrap plain string responses
+            return {"status": "success", "message": str(result)}
+
         except Exception as e:
-            return f"❌ WhatsApp error (sync): {str(e)}"
+            return {"status": "error", "message": f"❌ WhatsApp error (sync): {e}"}
 
     # --- ASYNC entrypoint (preferred when supported) ---
     async def _arun(self, to_number: str, message: str) -> str:
@@ -101,11 +108,28 @@ class WhatsAppTool(BaseTool):
                             "time": datetime.utcnow(),
                             "messages": [new_message]
                         })
+                    return {
+                        "status": "success",
+                        "to_number": clean_number,
+                        "message": f"✅ WhatsApp message successfully sent to {clean_number}.",
+                        "preview": message[:80]
+                    }
+
                 except Exception as e:
-                    return f"✅ WhatsApp message successfully sent to {clean_number}, but failed to save: {e}"
-                return f"✅ WhatsApp message successfully sent to {clean_number}: {message[:80]}"
+                    return {
+                        "status": "success",
+                        "to_number": clean_number,
+                        "message": f"✅ Message sent to {clean_number}, but saving failed: {e}",
+                        "preview": message[:80]
+                    }
+
             else:
-                return f"❌ Failed to send WhatsApp message to {clean_number}: {message[:80]}"
+                return {
+                    "status": "error",
+                    "to_number": clean_number,
+                    "message": f"❌ Failed to send WhatsApp message to {clean_number}.",
+                    "preview": message[:80]
+                }
 
         except Exception as e:
-            return f"❌ WhatsApp error: {str(e)}"
+            return {"status": "error", "message": f"❌ WhatsApp error: {e}"}

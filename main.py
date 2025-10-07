@@ -54,12 +54,19 @@ db = None
 redis_client= None
 
 
+
 def get_llm():
     """
     Initialize the LLM (Large Language Model) with a predefined model and API key.
     """
     return LLM(
         model="gpt-3.5-turbo",
+        api_key=os.getenv("OPENAI_API_KEY"),
+        temperature=0.1,
+        max_tokens=500,
+
+    ), LLM(
+        model="gpt-4o",
         api_key=os.getenv("OPENAI_API_KEY"),
         temperature=0.1,
         max_tokens=500,
@@ -91,109 +98,186 @@ def clean_agent_output(output: str, language: str = "ar") -> str:
     
     return output
 
-def get_workers(user_email, user_language, knowledge_base, context_window=[]):
+def get_workers(user_email, user_language, knowledge_base, selected_agents, context_window=[]):
     """
     Initialize and return all worker agents.
     """
-    llm_obj = get_llm()
-    return [
-        marketing_agent(llm_obj, user_email,  user_language),
-        sales_agent(llm_obj, user_email, user_language),
-        siyadah_helper_agent(llm_obj, user_email, user_language),
-        customer_service_agent(llm_obj, user_email, user_language),
-    ]
-
+    llm_obj, _ = get_llm()
+    selected_worker = []
+    if isinstance(selected_agents, list) and len(selected_agents) > 0 : 
+        if "marketing_agent" in selected_agents : 
+            selected_worker.append(marketing_agent(llm_obj, user_email,  user_language))
+        if "sales_agent" in selected_agents: 
+            selected_worker.append(sales_agent(llm_obj, user_email, user_language))
+        if "data_agent" in  selected_agents : 
+            selected_worker.append(db_agent(llm_obj, user_email, user_language))
+        
+    else : 
+        return [
+            marketing_agent(llm_obj, user_email,  user_language),
+            sales_agent(llm_obj, user_email, user_language),
+            db_agent(llm_obj, user_email, user_language)
+        ]
+    return selected_worker
 from crewai import Task
 
 from crewai import Task
-def get_understand_and_execute_task(user_prompt, user_email, user_language, tone, urgency, context_window=""):
+def get_understand_and_execute_task(
+    user_prompt,
+    user_email,
+    user_language,
+    dialect,
+    tone,
+    urgency,
+    selected_agents=None,  # list or None
+    context_window="",
+):
     """
-    Build a Task that routes work to the correct specialized agents,
-    taking into account language, tone, urgency, and conversation context.
+    Build ONE Task that integrates multiple Siyadah specialized agents if needed.
+    Always returns a single Task object.
+
+    Rule:
+    - If selected_agents is None or empty, include ALL agents.
     """
 
+    # 🧩 Define agent-specific profiles
+    agent_profiles = {
+        "marketing_agent": """
+        🎯 **MARKETING AGENT**
+        - Focus: audience-wide communication, campaigns, promotions, and general engagement.
+        - Channels: WhatsApp, Email, social media.
+        - Capabilities:
+            1. 📊 Campaign Management (multi-channel)
+            2. 🎨 Content Creation and Personalization
+            3. 📧 Email + WhatsApp Messaging
+            4. 🗂️ Customer Segmentation (via database queries)
+            5. 📈 Marketing Analytics (clicks, opens, engagement)
+        """,
+
+        "sales_agent": """
+        💼 **SALES AGENT**
+        - Focus: lead nurturing, follow-ups, deals, offers, and conversions.
+        - Channels: WhatsApp, Email, CRM.
+        - Capabilities:
+            1. 🤝 Lead Management and Follow-ups
+            2. 💬 Personalized WhatsApp/Email Outreach
+            3. 💰 Deal Tracking and Pipeline Updates
+            4. 📊 CRM Operations (retrieve/update lead data)
+            5. 🔍 Post-Campaign Follow-ups
+        """,
+
+        "data_agent": """
+        🗂️ **DATA AGENT**
+        - Focus: database operations, reports, and structured data queries.
+        - Capabilities:
+            1. 📦 CRUD operations (create, read, update, delete)
+            2. 📋 Data validation and consistency checks
+            3. 📈 Generate structured client reports
+            4. 🔍 Handle customer records and analytics datasets
+        """,
+
+        "system_agent": """
+        ⚙️ **SYSTEM AGENT**
+        - Focus: technical or configuration issues (e.g., login, API setup, environment errors).
+        - Capabilities:
+            1. 🛠️ Diagnose platform issues
+            2. 🧩 Adjust configuration or environment variables
+            3. 🧾 Provide setup or troubleshooting guidance
+        """,
+    }
+
+    # 🧠 Normalize the selected agents list
+    if not selected_agents:
+        # If no agents are provided → include all
+        selected_agents = list(agent_profiles.keys())
+    elif isinstance(selected_agents, str):
+        selected_agents = [selected_agents]
+
+    # 🧩 Merge all relevant agent profiles
+    merged_agent_descriptions = "\n\n".join(
+        agent_profiles.get(agent, agent_profiles["marketing_agent"])
+        for agent in selected_agents
+    )
+
+    # 🧠 Display which agents are active
+    active_agents_display = ", ".join([a.upper() for a in selected_agents])
+
+    # 🧩 Build ONE comprehensive Task
     return Task(
         description=f"""
-                    You manage an AI system with FOUR specialized agents.
+        You are now activating the following Siyadah AI agents together:  
+        🧠 {active_agents_display}
 
-                    📝 **User Request**:
-                    {user_prompt}
+        The user has issued this request:
+        >>> {user_prompt}
 
-                    🌍 **Language**: {user_language}  
-                    🎭 **Tone**: {tone}  
-                    ⏱️ **Urgency**: {urgency}  
-                    📂 **Context Window**: {context_window}  
+        ---
+        🧾 **Context Window**:
+        {context_window}
 
-                    ---
+        👤 **User Email**: {user_email}  
+        🌍 **Language**: {user_language}  
+        🌍 **Dialect**: {dialect}  
+        🎭 **Tone**: {tone}  
+        ⏱️ **Urgency**: {urgency}  
 
-                    🎯 **MARKETING AGENT Capabilities**:
-                    1. 📊 Campaign Management (multi-channel campaigns)
-                    2. 📧 Email Marketing (draft + send via MailerSend)
-                    3. 📱 WhatsApp Campaigns
-                    4. 🗂️ Customer Segmentation (MongoDB queries)
-                    5. 📈 Analytics
-                    6. 🎨 Content Creation
-                    7. 🔍 Database Operations (CRUD)
+        ---
+        ### 🔧 Agent Capabilities:
+        {merged_agent_descriptions}
 
-                    💼 **SALES AGENT Capabilities**:
-                    1. 🤝 Lead Management
-                    2. 📞 Sales Outreach (pitches, follow-ups)
-                    3. 💰 Deal Tracking
-                    4. 📊 CRM Operations
-                    5. 📧 Sales Emails
-                    6. 📱 WhatsApp Sales
-                    7. 🗂️ Database Management (MongoDB)
+        ---
+        🧠 **Execution Protocol**
+        1. Respect tone and urgency in your reply.
+        2. Always respond in {user_language} ({dialect} dialect if applicable).
+        3. Use only the listed agents’ capabilities — they collaborate internally.
+        4. Do not simulate or mention the orchestration layer.
+        5. Produce a clear, final result (no thought process).
+        6. Suggest a next step in the form of a question, based on the user input, the produced result, and the conversation context.
+        7. If a misunderstanding or irrelevant response occurred in the previous turn, begin your message with a brief, polite apology (e.g., “Sorry for the confusion earlier,” or “My apologies, I misunderstood your previous question”). Then proceed directly with the correct and concise answer.
 
-                    ❓ **SIYADAH HELPER AGENT Capabilities**:
-                    1. 📚 Platform Knowledge (answer Siyadah questions)
-                    2. 🔧 Technical Support
-                    3. 📖 User Guidance
-                    4. 💡 Best Practices
-                    5. 🎓 Training & Capability explanation
+        🚨 **Critical Rules**
+        - No hallucinations, no placeholders
+        - Use only verified contextual data (scoped to {user_email})
+        - Respect urgency: “high” = concise, “low” = detailed
+        - Keep a professional and polite tone.
+        - Apologize only when the system misinterprets or provides an irrelevant answer — not for normal uncertainty or lack of data.
+        """,
 
-                    📞 **CUSTOMER SERVICE AGENT Capabilities**:
-                    1. 💬 Intent Detection (greetings, complaints, requests)
-                    2. 📝 Smart Replies in {user_language}, adapting to {tone} & {urgency}
-                    3. 📱 Multi-Channel Support (WhatsApp/Email)
-                    4. 🤗 Sentiment Handling
-                    5. 🔄 Escalation to Sales/Marketing/Helper if needed
-                    6. 🗂️ Database Operations (conversation history)
-                    7. ✅ Auto-Send (no placeholders)
+    expected_output = f"""
+        Return ONLY the final result in {user_language} ({dialect} dialect if applicable).  
+        If a misunderstanding occurred previously, begin with a short apology, then provide the correct result.
+        After the result, always suggest a next step in the form of a question, based on:
 
-                    ---
+            the user’s input,
 
-                    📜 **Execution Protocol**:
-                    1. Match tone = {tone} and urgency = {urgency} in responses.
-                    2. Always respond in {user_language}.
-                    3. Use context from {context_window} for continuity.
-                    4. Route subtasks strictly to the correct agent.
-                    5. Validate data (scoped by {user_email}, no dummy info).
-                    6. Maintain professional tone at all times.
+            the result produced,
 
-                    🚨 **Critical Rules**:
-                    - No hallucinations, no placeholders
-                    - Only real, contextual data
-                    - Respect urgency: high = prioritize speed, low = thoroughness
-                    - Professional standards always
+            and the current conversation context.
+            
+        The result should be:
+        - The actual output requested by the user (e.g., content, data, message, summary, etc.).  
+        - Clean, ready to use, and formatted appropriately for the task.  
 
-                    """,
-        expected_output=f"""
-                        Return ONLY the final result in {user_language}.
+        DO NOT include:
+        - Explanations or reasoning steps.  
+        - Phrases like “Here is the result” or “I have completed your request.”  
+        - System or agent commentary.  
+        - Placeholders or unfinished content.  
 
-                        Good output examples:
-                        - Arabic: "✅ تم إضافة العميل محمد برقم +21653844063"
-                        - English: "✅ Customer Mohamed added with number +21653844063"
+        ✅ Example outputs:
+        - Arabic: "تم تجهيز التقرير الشهري مع التحليل الكامل للأداء."  
+        ➡️ Next step: "هل ترغب في أن أرسل هذا التقرير عبر البريد الإلكتروني لفريقك؟"  
 
-                        NEVER include:
-                        - Thought process ("Thought: I need to...")
-                        - Action steps ("Action: Delegate to...")
-                        - Placeholders ([Your Name], [Company])
-                        - Internal dialogue
+        - English: "Customer segmentation data prepared with 120 active leads."  
+        ➡️ Next step: "Would you like me to create a follow-up campaign for these leads?"  
 
-                        Just the final result in one clear sentence.
-                        """,
-                        )
+        - Arabic (content): "مرحباً! يسعدنا إعلامك بأن عرضنا الجديد متاح الآن."  
+        ➡️ Next step: "هل ترغب أن أرسل هذا العرض الآن لقاعدة عملائك؟"  
 
+        - English (content): "Hi! Enjoy 30% off your first purchase this week."  
+        ➡️ Next step: "Should I schedule this message to go out via WhatsApp or Email?"  
+    """
+    )
     
 def detect_language(text: str) -> str:
     langid.set_languages(['fr', 'en', 'ar'])
@@ -226,7 +310,7 @@ async def process_prompt(request: UserPromptRequest):
     start = time.time()
     user_prompt = request.prompt
     user_email = "mohamed.akaaaq@d10.sa"
-    llm_obj = get_llm()
+    llm_obj, manager_llm = get_llm()
     
     from utils import save_message, get_messages
     # Save user input
@@ -257,7 +341,7 @@ async def process_prompt(request: UserPromptRequest):
     from utils import respond_to_user, check_required_data
     if understanding_res.response_type == "simple":
         return JSONResponse(content={
-            "final_output": respond_to_user(user_prompt, redis_context_window),
+            "final_output": respond_to_user(user_prompt, user_email),
         })
 
     confirmation = check_required_data(user_prompt, redis_context_window)
@@ -300,7 +384,7 @@ async def process_prompt(request: UserPromptRequest):
     except:
         urgency = "normal"
 
-    mgr = manager_agent(llm_obj, userlanguage)
+    mgr = manager_agent(manager_llm, userlanguage)
 
     try:
         #client = MongoClient(os.getenv("MONGO_DB_URI"))
@@ -391,10 +475,7 @@ async def process_prompt(request: UserPromptRequest):
     start = time.time()
     user_prompt = request.prompt
     user_email = "mohamed.ak@d10.sa"
-    llm_obj = get_llm()
-    
-    # 🆕 استيراد Manager Brain
-    from test_manager import manager_agent, get_manager_brain
+    llm_obj, manager_llm = get_llm()
     
     from utils import save_message, get_messages
     save_message(redis_client, user_email, "user", user_prompt)
@@ -419,15 +500,36 @@ async def process_prompt(request: UserPromptRequest):
     print("++++++++++++++++++++++++++++++++++++++++++++")
     print(understanding_res.to_dict())
     print("++++++++++++++++++++++++++++++++++++++++++++")
-    return JSONResponse(content={
-            "final_output": str(understanding_res.to_dict()) ,
-        })
     print(understanding_res.response_type)
-    
+
+    try:
+        userlanguage = understanding_res.to_dict().get("language")
+    except:
+        userlanguage = "ar"
+    try:
+        dialect = understanding_res.to_dict().get("dialect")
+    except:
+        dialect = "standard"
+        
+    try:
+        tone = understanding_res.to_dict().get("tone")
+    except:
+        tone = "neutral"
+        
+    try:
+        urgency = understanding_res.to_dict().get("urgency")
+    except:
+        urgency = "normal"
+
+    try:
+        selected_agents = understanding_res.to_dict().get("selected_agents")
+    except:
+        selected_agents = []
+        
     from utils import respond_to_user, check_required_data
     if understanding_res.response_type == "simple":
         return JSONResponse(content={
-            "final_output": respond_to_user(user_prompt, redis_context_window),
+            "final_output": respond_to_user(user_prompt, user_email, userlanguage, dialect, tone, urgency),
         })
 
     confirmation = check_required_data(user_prompt, redis_context_window)
@@ -460,34 +562,10 @@ async def process_prompt(request: UserPromptRequest):
     except:
         tasks = clear_prompt
         
-    try:
-        userlanguage = understanding_res.to_dict().get("language")
-    except:
-        userlanguage = "ar"
-        
-    try:
-        tone = understanding_res.to_dict().get("tone")
-    except:
-        tone = "neutral"
-        
-    try:
-        urgency = understanding_res.to_dict().get("urgency")
-    except:
-        urgency = "normal"
 
     # 🆕 استخدام Smart Manager
-    mgr = manager_agent(llm_obj, userlanguage)
+    mgr = manager_agent(manager_llm, userlanguage)
     
-    # 🆕 احصل على Brain للتتبع
-    brain = get_manager_brain()
-    task_id = f"task_{int(time.time() * 1000)}"  # Unique task ID
-    
-    # 🆕 سجل بداية المهمة
-    if brain:
-        # تحليل المهمة أولاً
-        task_analysis = brain.analyze_task(tasks, str(redis_context_window))
-        selected_agent = brain.select_agent(task_analysis)
-        brain.record_task_start(task_id, selected_agent, tasks[:100])
 
     try:
         collection = db["knowledgebases"]
@@ -501,8 +579,8 @@ async def process_prompt(request: UserPromptRequest):
     print(execution_time)
     print("-----------------------")
     
-    workers = get_workers(user_email, userlanguage, knowledge_base, str(redis_context_window))
-    understand_and_execute = get_understand_and_execute_task(tasks, user_email, userlanguage, tone, urgency, str(redis_context_window))
+    workers = get_workers(user_email, userlanguage, knowledge_base, selected_agents, str(redis_context_window))
+    understand_and_execute = get_understand_and_execute_task(tasks, user_email, userlanguage, dialect, tone, urgency, selected_agents, str(redis_context_window))
 
     crew = Crew(
         agents=workers,
@@ -540,15 +618,8 @@ async def process_prompt(request: UserPromptRequest):
             print("Sorry, i can't save the system response")
             
         crew_execution_time = time.time() - start_crew
-        
-        # 🆕 سجل نجاح المهمة
-        if brain:
-            brain.record_task_completion(task_id, True, crew_execution_time)
-            # اطبع الإحصائيات
-            print("\n" + "="*60)
-            print(brain.get_metrics_summary())
-            print("="*60 + "\n")
 
+    
         file_data = None
         file_name = None
 
@@ -573,19 +644,9 @@ async def process_prompt(request: UserPromptRequest):
             "file_name": file_name,
             "file_content": file_data,
             # 🆕 معلومات إضافية
-            "metrics": {
-                "task_id": task_id,
-                "agent_used": selected_agent if brain else "unknown",
-                "total_tasks": brain.total_tasks if brain else 0,
-                "success_rate": f"{(brain.completed_tasks/max(brain.total_tasks,1)*100):.1f}%" if brain else "N/A"
-            }
         })
 
     except Exception as e:
-        # 🆕 سجل فشل المهمة
-        if brain:
-            brain.record_task_completion(task_id, False, time.time() - start_crew)
-            brain.retry_count += 1
             
         print(e)
         raise HTTPException(status_code=500, detail=f"Error occurred: {str(e)}")
@@ -713,3 +774,39 @@ async def salla_webhook_listener(request: Request):
     except Exception as e:
         print("Erreur de parsing:", e)
         return {"status": "error"}
+    
+
+# ------------------------------------------------------------
+# 3. Request model
+# ------------------------------------------------------------
+class IndexRequest(BaseModel):
+    useremail: str
+# ------------------------------------------------------------
+# 7. Endpoint: Index user by email
+# ------------------------------------------------------------
+@app.post("/index_data/")
+def index_data(req: IndexRequest):
+    """
+    Fetch user data from MongoDB (collection: knowledgebases)
+    and index it into Pinecone under their namespace.
+    """
+    from indexing import index_user_data
+    try:
+        user_data = db["knowledgebases"].find_one({"userId": req.useremail})
+        if not user_data or "extractedContent" not in user_data:
+            raise HTTPException(status_code=404, detail="User data not found in MongoDB.")
+
+        content = user_data["extractedContent"]
+        if not content or not isinstance(content, str):
+            raise HTTPException(status_code=400, detail="Invalid or empty 'extractedContent'.")
+
+        chunk_count = index_user_data(req.useremail, content)
+        return {
+            "message": f"✅ Indexed {chunk_count} text chunks for {req.useremail}.",
+            "namespace": req.useremail
+        }
+
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

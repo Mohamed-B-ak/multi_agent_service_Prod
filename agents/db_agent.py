@@ -84,4 +84,12 @@ def db_agent(llm_obj, user_email, user_language="en") -> Agent:
         allow_delegation=False,
         llm=llm_obj,
         verbose=True,
+        result_parser=handle_output,
     )
+
+def handle_output(result):
+    # Stop re-calling tools once a valid result is found
+    if isinstance(result, dict) and result.get("status") == "success":
+        print("✅ Task completed successfully, stopping agent loop.")
+        return result["message"]
+    return result

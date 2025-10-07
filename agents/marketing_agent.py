@@ -15,7 +15,9 @@ from Tools.db_tools import (
 # 🔹 Communication tools
 from Tools.whatsApp_tools import WhatsAppTool
 from Tools.email_tools import MailerSendTool
+from Tools.MessageContentTool import MessageContentTool
 
+from utils import standard_result_parser
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -45,33 +47,36 @@ def marketing_agent(llm_obj, user_email, user_language) -> Agent:
     # Marketing Tools
     whatsapp_tool = WhatsAppTool(user_email=user_email)
     email_tool = MailerSendTool(user_email=user_email)
-
+    content_tool = MessageContentTool(user_email=user_email)
     # Collections info
     collections_info = list_collections_tool._run()
 
     # Goal
     goal_text = (
-        "As a Marketing Agent, you perform MongoDB Atlas operations (list collections, "
-        "CRUD, aggregations), prepare and analyze customer segments, "
-        "and generate multi-channel marketing campaigns. "
-        "You can send content via WhatsApp or Email. "
+        "You are a Marketing Agent. Execute ONLY the tasks explicitly requested by the user. "
+        "Perform MongoDB Atlas operations (list collections, CRUD, aggregations), "
+        "prepare and analyze customer segments, and generate marketing campaigns "
+        "ONLY when clearly asked to do so. "
+        "You can send content via WhatsApp or Email, but ONLY when there is a clear and explicit user request. "
         f"⚠️ Respond ONLY in the user's language: {user_language}. "
         f"Always restrict database queries to the user's email: {user_email}, "
         "by filtering against fields like `userEmail`. "
         f"\n\nAvailable collections and fields: {collections_info}. "
-        "Always choose the most relevant collection. Do NOT invent names."
-        f"\n\nMarketing duties: create engaging campaigns, segment audiences, "
-        "analyze results, and deliver personalized outreach."
+        "Always choose the most relevant collection. Do NOT invent names. "
+        "\n\nDO NOT perform any analysis, campaign generation, or message sending "
+        "unless directly and explicitly requested."
     )
 
-    # Backstory
+    # Strict backstory
     backstory_text = (
-        "You are a Marketing Agent who specializes in campaign strategy, "
-        "customer segmentation, and outreach automation. "
-        "You understand MongoDB Atlas and can perform CRUD and aggregation queries, "
-        "but your expertise lies in building effective campaigns and ensuring "
-        "messages reach the right people through Email and WhatsApp. "
-        f"All outputs must strictly be in {user_language}, concise and accurate. "
+        "You are a disciplined Marketing Agent focused solely on executing user instructions. "
+        "You specialize in customer segmentation, campaign strategy, and marketing operations, "
+        "but you NEVER act on your own — you only perform tasks when the user explicitly asks. "
+        "You do not assume, predict, or initiate any actions such as creating campaigns, "
+        "analyzing data, or sending messages unless instructed. "
+        "You can use MongoDB Atlas for CRUD and aggregation operations, "
+        "but all actions must be tied to explicit user commands. "
+        f"All outputs must be strictly in {user_language}, concise, and accurate. "
         "Database operations must always be scoped to the user’s email context."
     )
 
@@ -88,14 +93,21 @@ def marketing_agent(llm_obj, user_email, user_language) -> Agent:
             read_data_tool,
             count_documents_tool,
             whatsapp_tool,
-            email_tool
+            email_tool,
+            content_tool
         ],
         allow_delegation=False,
         llm=llm_obj,
         verbose=True,
+        result_parser=standard_result_parser,
     )
 
-
+def handle_output(result):
+    # Stop re-calling tools once a valid result is found
+    if isinstance(result, dict) and result.get("status") == "success":
+        print("✅ Task completed successfully, stopping agent loop.")
+        return result["message"]
+    return result
 if __name__ == "__main__":
     # 🔹 Setup your LLM
     llm = LLM(

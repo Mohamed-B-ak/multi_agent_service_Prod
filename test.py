@@ -1,270 +1,75 @@
-"""
-Simple Prompt Understanding Layer
-A clean, straightforward layer for understanding user prompts with context
-"""
-
-import json
-from openai import OpenAI
-from typing import Dict, List, Optional
-from datetime import datetime
 import os
+from pymongo import MongoClient
+from dotenv import load_dotenv
+from pinecone import Pinecone
+import re 
+
+# ------------------------------------------------------------
+# 1. Load environment
+# ------------------------------------------------------------
+load_dotenv()
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+INDEX_NAME = os.getenv("PINECONE_INDEX", "rag-multiuser")
 from dotenv import load_dotenv
 import os
-from crewai import LLM
-    
-    # Load environment
+
 load_dotenv()
 
-class SimplePromptUnderstanding:
-    """Simple class to hold understanding results"""
-    def __init__(self, data: dict):
-        self.user_input= data.get("user_input")
-        self.intent = data.get("intent", "unknown")
-        self.meaning = data.get("meaning", "")
-        self.tone = data.get("tone", "neutral")
-        self.entities = data.get("entities", {})
-        self.language = data.get("language", "en")
-        self.dialect = data.get("dialect", "standard")  # NEW
-        self.needs_clarification = data.get("needs_clarification", False)
-        self.clarification_question = data.get("clarification_question", "")
-        self.confidence = data.get("confidence", 0.7)
-        self.urgency = data.get("urgency", "normal")
-        self.context_references = data.get("context_references", {})
-        self.response_type = data.get("response_type", "")
+print(os.getenv("DB_NAME"))
+print(os.getenv("MONGO_DB_URI"))
+client = MongoClient(os.getenv("MONGO_DB_URI"))
+db = client[os.getenv("DB_NAME")]
+collection = db["whatsappmessages"]
 
-    def to_dict(self):
-        """Convert to dictionary"""
-        return {
-            "user_input": self.user_input,
-            "intent": self.intent,
-            "meaning": self.meaning,
-            "tone": self.tone,
-            "entities": self.entities,
-            "language": self.language,
-            "dialect": self.dialect,   # NEW
-            "needs_clarification": self.needs_clarification,
-            "clarification_question": self.clarification_question,
-            "confidence": self.confidence,
-            "urgency": self.urgency,
-            "context_references": self.context_references,
-            "response_type": self.response_type
 
-        }
-
-class PromptUnderstandingLayer:
+def retrieve_context(query: str, user_email: str, k: int = 2) -> str:
     """
-    Simple layer to understand user prompts with context
+    Retrieve top-k relevant chunks for a query from:
+    - The user's personal namespace (user_email)
+    - The shared system namespace ("system@diyadah-ai.com")
+    Both results are merged and sorted by similarity.
     """
-    
-    def __init__(self, api_key: str = None):
-        """Initialize with OpenAI API key"""
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        
-    def understand(
-        self, 
-        user_prompt: str, 
-        context: List[Dict] = None,
-        model: str = "gpt-3.5-turbo"
-    ) -> SimplePromptUnderstanding:
-        """
-        Understand user prompt with context
-        
-        Args:
-            user_prompt: The user's input
-            context: Previous messages [{"role": "user/assistant", "content": "..."}]
-            model: OpenAI model to use
-            
-        Returns:
-            SimplePromptUnderstanding object
-        """
-        
-        # Build the analysis prompt
-        analysis_prompt = self._build_prompt(user_prompt, context)
-        
-        try:
-            # Call OpenAI
-            response = self.client.chat.completions.create(
-                model=model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are an expert at understanding user requests. Analyze prompts and return JSON."
-                    },
-                    {
-                        "role": "user",
-                        "content": analysis_prompt
-                    }
-                ],
-                temperature=0.3,
-                max_tokens=1000
-            )
-            
-            # Parse the response
-            content = response.choices[0].message.content
-            result = self._parse_json(content)
-            # Return understanding object
-            return SimplePromptUnderstanding(result)
-            
-        except Exception as e:
-            print(f"Error: {e}")
-            # Return basic understanding on error
-            return SimplePromptUnderstanding({
-                "intent": "unknown",
-                "meaning": user_prompt,
-                "needs_clarification": True,
-                "clarification_question": "Could you please clarify your request?"
-            })
-    
-    def _build_prompt(self, user_prompt: str, context: List[Dict]) -> str:
-        """Build the analysis prompt"""
-        
-        context_str = ""
-        if context:
-            context_str = "Previous conversation:\n"
-            for msg in context[-5:]:  # Last 5 messages for context
-                role = msg.get("role", "unknown")
-                content = msg.get("content", "")
-                context_str += f"{role}: {content}\n"
-        
-        return f"""
-                Analyze this user prompt considering the conversation context.
+    pc = Pinecone(api_key=PINECONE_API_KEY)
 
-                {context_str}
+    # Connect to Pinecone index
+    index = pc.Index(INDEX_NAME)
+    print(f"✅ Connected to Pinecone index '{INDEX_NAME}'\n")
+    emb = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=query
+    ).data[0].embedding
 
-                Current user prompt: "{user_prompt}"
+    # Query user namespace
+    user_results = index.query(
+        namespace=user_email,
+        vector=emb,
+        top_k=k,
+        include_metadata=True
+    )
 
-                Understand the following:
+    # Query system (shared) namespace
+    system_results = index.query(
+        namespace="system@diyadah-ai.com",
+        vector=emb,
+        top_k=k,
+        include_metadata=True
+    )
 
-                1. INTENT - What does the user want to do?
-                - Categories: create, read, update, delete, send, help, greeting, complaint, inquiry, campaign
+    # Combine both result sets
+    all_matches = []
+    if "matches" in user_results:
+        all_matches.extend(user_results["matches"])
+    if "matches" in system_results:
+        all_matches.extend(system_results["matches"])
 
-                2. MEANING - What does the user actually mean in simple terms?
+    # Sort all results by similarity (descending)
+    all_matches = sorted(all_matches, key=lambda x: x.get("score", 0), reverse=True)
 
-                3. TONE - What's the emotional tone?
-                - Options: formal, casual, urgent, frustrated, happy, neutral, polite
+    # Limit to top-k total
+    top_contexts = [m["metadata"]["text"] for m in all_matches[:k]]
 
-                4. ENTITIES - Extract important information:
-                - Names, emails, phone numbers, dates, quantities
+    if not top_contexts:
+        return "No relevant data found."
 
-                5. LANGUAGE - What language is the user speaking?
-                - ar (Arabic), en (English), fr (French)
-
-                6. DIALECT - If the language has dialects, detect it.
-                - Examples:
-                    - Arabic: Egyptian, Gulf, Levantine, Maghrebi, Standard
-                    - English: American, British, Australian, Indian
-                    - French: Parisian, Canadian, African
-                - If no clear dialect, return "standard"
-
-                7. CONTEXT REFERENCES - What from previous messages is being referenced?
-                - Example: "them" refers to "customers from previous query"
-
-                8. URGENCY - How urgent is this request?
-                - low, normal, high, critical
-
-                9. CLARIFICATION - Does this need more information to execute?
-                - If yes, what question should we ask?
-
-                10. RESPONSE TYPE - Does this request require multiple reasoning/agents 
-                (e.g., gather data, perform actions, multi-step tasks, sending email, using WhatsApp, 
-                asking about data, asking for help), 
-                or is it simple enough for a direct response?  
-                
-                - Use `"simple"` ONLY for greetings, farewells, or very short conversational phrases 
-                like "hello", "hi", "goodbye", "thanks".  
-                - For ALL other intents (create, read, update, delete, send, help, complaint, inquiry, campaign), 
-                return `"agent"`.  
-
-                Options: "agent" or "simple"
-
-                11. CONFIDENCE - How confident are you in this understanding? (0-1)
-
-                Return ONLY a JSON object:
-                {{
-                    "user_input" : "the user input"
-                    "intent": "the main intent",
-                    "meaning": "clear explanation of what user wants",
-                    "tone": "detected tone",
-                    "entities": {{"key": "value"}},
-                    "language": "ar/en/fr",
-                    "dialect": "egyptian/gulf/levantine/etc or standard",
-                    "context_references": {{"pronoun": "what it refers to"}},
-                    "urgency": "low/normal/high/critical",
-                    "needs_clarification": true/false,
-                    "clarification_question": "question to ask if needed",
-                    "response_type": "agent/simple",
-                    "confidence": 0.0-1.0
-                }}
-                """
-
-
-    def _parse_json(self, content: str) -> dict:
-        """Parse JSON from OpenAI response"""
-        try:
-            # Try direct parsing
-            return json.loads(content)
-        except:
-            # Try to extract JSON from text
-            import re
-            json_match = re.search(r'\{.*\}', content, re.DOTALL)
-            if json_match:
-                try:
-                    return json.loads(json_match.group())
-                except:
-                    pass
-            
-            # Return empty dict if parsing fails
-            return {}
-
-
-# Simple usage example
-def main():
-    """Test the understanding layer"""
-    
-    # Initialize
-    layer = PromptUnderstandingLayer()
-    
-    # Test cases
-    test_cases = [
-        {
-            "prompt": "أبغى أرسل حملة ايميلات ",
-            "context": [
-                {"role": "user", "content": "How many customers do I have?"},
-                {"role": "assistant", "content": "You have 4 customers"},
-                {"role": "user", "content": "Show me their names"},
-                {"role": "assistant", "content": "The customers are: Ahmed, Sara, Mohammed, Fatima"}
-            ]
-        },
-        {
-            "prompt": "أضف عميل جديد",
-            "context": []
-        },
-        {
-            "prompt": "This is urgent! Fix it now!",
-            "context": [
-                {"role": "user", "content": "The email campaign isn't working"},
-                {"role": "assistant", "content": "Let me check the campaign"}
-            ]
-        }
-    ]
-    
-    print("=" * 60)
-    print("TESTING PROMPT UNDERSTANDING LAYER")
-    print("=" * 60)
-    test_inputs = ["هلا والله و غلا  ",
-                ]
-    for i in test_inputs:
-
-        
-        # Understand the prompt
-        understanding = layer.understand(
-            user_prompt=i,
-            context=[]
-        )
-        print("-----------------------------************----------------------------")
-        print(understanding.to_dict())
-        print("-----------------------------************----------------------------")
-
-
-if __name__ == "__main__":
-    main()
+    return "\n".join(top_contexts)

@@ -58,17 +58,17 @@ class MailerSendTool(BaseTool):
             # Find user document
             user_doc = collection.find_one({"userEmail": self.user_email})
             if not user_doc:
-                return f"❌ No credentials found for {self.user_email}"
+                return {"status": "error", "message": f"No credentials found for {self.user_email}"}
 
             mailer_doc = user_doc.get("mailerSend", {})
             sender = mailer_doc.get("sender")
             api_key = mailer_doc.get("apiKey")
 
             if not sender or not api_key:
-                return "❌ MailerSend credentials are missing"
-
+                return {"status": "error", "message": "MailerSend credentials are missing"}
         except Exception as e:
-            return f"❌ Error fetching credentials: {str(e)}"
+            return {"status": "error", "message": f"Error fetching credentials: {e}"}
+
         print(api_key)
         print(sender)
         # ✅ MailerSend API request
@@ -99,10 +99,20 @@ class MailerSendTool(BaseTool):
                         "email_content": message
                     })
                 except Exception as e:
-                    return f"✅ Email accepted for delivery to {to_email}, but failed to save: {e}"
+                    return {
+                        "status": "success",
+                        "message": f"✅ Email sent to {to_email}, but saving failed: {e}"
+                    }
 
-                return f"✅ Email accepted for delivery to {to_email} and saved to DB."
+                return {
+                    "status": "success",
+                    "message": f"✅ Email successfully sent to {to_email} and logged in DB."
+                }
+
             else:
-                return f"❌ Failed to send. Status: {response.status_code}, Error: {response.text}"
+                return {
+                    "status": "error",
+                    "message": f"MailerSend API returned {response.status_code}: {response.text}"
+                }
         except Exception as e:
-            return f"❌ Error sending email: {str(e)}"
+            return {"status": "error", "message": f"Error sending email: {e}"}

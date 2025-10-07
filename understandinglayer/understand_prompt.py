@@ -31,6 +31,8 @@ class SimplePromptUnderstanding:
         self.urgency = data.get("urgency", "normal")
         self.context_references = data.get("context_references", {})
         self.response_type = data.get("response_type", "")
+        self.selected_agents = data.get("selected_agents", [])
+        
 
     def to_dict(self):
         """Convert to dictionary"""
@@ -47,7 +49,9 @@ class SimplePromptUnderstanding:
             "confidence": self.confidence,
             "urgency": self.urgency,
             "context_references": self.context_references,
-            "response_type": self.response_type
+            "response_type": self.response_type,
+            "selected_agents": self.selected_agents
+
 
         }
 
@@ -64,7 +68,7 @@ class PromptUnderstandingLayer:
         
     def understand(
         self, 
-        model: str = "gpt-3.5-turbo"
+        model: str = "gpt-4o"
     ) -> SimplePromptUnderstanding:
         """
         Understand user prompt with context
@@ -101,7 +105,9 @@ class PromptUnderstandingLayer:
             
             # Parse the response
             content = response.choices[0].message.content
+            print(content)
             result = self._parse_json(content)
+            print(result)
             # Return understanding object
             return SimplePromptUnderstanding(result)
             
@@ -116,80 +122,92 @@ class PromptUnderstandingLayer:
             })
     
     def _build_prompt(self, user_prompt: str, context: List[Dict]) -> str:
-        """Build the analysis prompt"""
-        
-        
-        return f"""
-                Analyze this user prompt considering the conversation context.
+        """Build the analysis prompt (multi-agent aware)"""
 
+        return f"""
+                You are a conversation analyzer for Siyadah AI — a system that helps users manage campaigns, marketing, sales, data, and system operations.
+
+                Your goal is to deeply understand what the user wants based on the current message and conversation context, 
+                and decide which Siyadah AI agents must cooperate to fulfill the request.
+
+                ---
+
+                ### CONTEXT
                 {context}
 
-                Current user prompt: "{user_prompt}"
+                ### CURRENT USER PROMPT
+                "{user_prompt}"
 
-                Understand the following:
+                ---
 
-                1. INTENT - What does the user want to do?
-                - Categories: create, read, update, delete, send, help, greeting, complaint, inquiry, campaign
+                ### Perform the following structured analysis:
 
-                2. MEANING - A full actionable interpretation of what the user actually wants, 
-                combining the current prompt with context and extracted entities.  
-                - This should read like a clear instruction including details.  
-                - Example: "The user wants to add a customer with name Mohamed, phone +21653844063, and email mohamed@d10.sa."
+                1. **INTENT** – What is the user's main goal or action?
+                - Categories: `create`, `read`, `update`, `delete`, `send`, `help`, `greeting`, `complaint`, `inquiry`, `campaign`.
 
-                3. TONE - What's the emotional tone?
-                - Options: formal, casual, urgent, frustrated, happy, neutral, polite
+                2. **MEANING** – Full actionable interpretation of what the user actually wants.
 
-                4. ENTITIES - Extract important information:
-                - Names, emails, phone numbers, dates, quantities
+                3. **TONE** – Emotional tone of the message.
+                - Options: `formal`, `casual`, `urgent`, `frustrated`, `happy`, `neutral`, `polite`.
 
-                5. LANGUAGE - What language is the user speaking?
-                - ar (Arabic), en (English), fr (French)
+                4. **ENTITIES** – Extract names, emails, phone numbers, dates, numbers, identifiers, or other structured information.
 
-                6. DIALECT - If the language has dialects, detect it.
-                - Examples:
-                    - Arabic: Egyptian, Gulf, Levantine, Maghrebi, Standard
-                    - English: American, British, Australian, Indian
-                    - French: Parisian, Canadian, African
-                - If no clear dialect, return "standard"
+                5. **LANGUAGE** – Detect primary language (`ar`, `en`, `fr`).
 
-                7. CONTEXT REFERENCES - What from previous messages is being referenced?
-                - Example: "them" refers to "customers from previous query"
+                6. **DIALECT** – Detect dialect (Arabic: `Gulf`, `Maghrebi`, etc.; English: `American`, `British`; French: `Parisian`, etc.)
 
-                8. URGENCY - How urgent is this request?
-                - low, normal, high, critical
+                7. **CONTEXT REFERENCES** – Identify any references to prior conversation context.
 
-                9. CLARIFICATION - Does this need more information to execute?
-                - If yes, what question should we ask?
+                8. **URGENCY** – Estimate urgency level (`low`, `normal`, `high`, `critical`).
 
-                10. RESPONSE TYPE - Does this request require multiple reasoning/agents 
-                (e.g., gather data, perform actions, multi-step tasks, sending email, using WhatsApp, 
-                asking about data, asking for help), 
-                or is it simple enough for a direct response?  
+                9. **CLARIFICATION** – Determine if additional information is needed to proceed.
 
-                - Use `"simple"` ONLY for greetings, farewells, or very short conversational phrases 
-                like "hello", "hi", "goodbye", "thanks".  
-                - For ALL other intents (create, read, update, delete, send, help, complaint, inquiry, campaign), 
-                return `"agent"`.  
+                10. **RESPONSE TYPE** – `"simple"` or `"agent"` as before.
+                    - `"simple"` → Use when ChatGPT can directly answer without requiring a specialist agent.  
+                    - `"agent"` → Use when the query requires a specialist Siyadah AI agent.  
 
-                Options: "agent" or "simple"
+                11. **AGENT SELECTION** – If RESPONSE TYPE = agent, determine which Siyadah agents should be involved.
 
-                11. CONFIDENCE - How confident are you in this understanding? (0-1)
+                - Possible agents:
+                    - `marketing_agent` → Campaigns, content creation, promotions, announcements.
+                    - `sales_agent` → Lead nurturing, follow-ups, offers, deals, conversions.
+                    - `data_agent` → Client database operations, reports, or data lookups.
 
-                Return ONLY a JSON object:
+                - **Task Overlap Note:**
+                    - `marketing_agent` and `sales_agent` can both prepare and send campaigns via WhatsApp or Email.
+                    - Choose one or both depending on scope and purpose.
+                        - `marketing_agent` → broad audiences, brand or product promotion.
+                        - `sales_agent` → follow-up, targeted conversions, personalized offers.
+
+                - You may include multiple agents when collaboration is required.
+                    - Example: marketing creates a campaign → sales follows up → data_agent logs results.
+
+                - Also specify **coordination_type**:
+                    - `"sequential"` → one agent acts after another (e.g., marketing → sales).
+                    - `"parallel"` → agents act simultaneously on related tasks.
+                    - `"independent"` → each performs a distinct action.
+
+                12. **CONFIDENCE** – Provide a confidence score between 0 and 1.
+
+                ---
+
+                ### Return only a JSON object:
                 {{
-                    "user_input" : "the user input",
-                    "intent": "the main intent",
-                    "meaning": "full actionable interpretation including entities and context",
+                    "user_input": "the exact user input",
+                    "intent": "main intent category",
+                    "meaning": "detailed interpretation of user request",
                     "tone": "detected tone",
                     "entities": {{"key": "value"}},
                     "language": "ar/en/fr",
-                    "dialect": "egyptian/gulf/levantine/etc or standard",
-                    "context_references": {{"pronoun": "what it refers to"}},
+                    "dialect": "detected dialect or 'standard'",
+                    "context_references": {{"pronoun": "reference"}},
                     "urgency": "low/normal/high/critical",
                     "needs_clarification": true/false,
                     "clarification_question": "question to ask if needed",
                     "response_type": "agent/simple",
-                    "confidence": 0.0-1.0
+                    "selected_agents": {["marketing_agent", "sales_agent", "data_agent"]},
+                    "coordination_type": "sequential/parallel/independent",
+                    "confidence": 0.0–1.0
                 }}
                 """
 
@@ -199,6 +217,7 @@ class PromptUnderstandingLayer:
         """Parse JSON from OpenAI response"""
         try:
             # Try direct parsing
+            print("json.loads(content)      =================>", json.loads(content))
             return json.loads(content)
         except:
             # Try to extract JSON from text

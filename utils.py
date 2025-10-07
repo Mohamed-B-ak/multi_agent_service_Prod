@@ -2,7 +2,20 @@ import os
 from crewai import LLM
 from pymongo import MongoClient
 import os
+import os
+import time
+from dotenv import load_dotenv
+from openai import OpenAI
+from pinecone import Pinecone
+import re 
 
+# ------------------------------------------------------------
+# 1. Load environment
+# ------------------------------------------------------------
+load_dotenv()
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+INDEX_NAME = os.getenv("PINECONE_INDEX", "rag-multiuser")
 from dotenv import load_dotenv
 import os
 
@@ -65,34 +78,30 @@ from openai import OpenAI
 # Initialize client
 client = OpenAI()
 
-def respond_to_user(prompt: str, context: str) -> str:
+def respond_to_user(prompt: str, user_email: str, userlanguage: str, dialect: str, tone: str, urgency: str) -> str:
     """
-    Call OpenAI API with a user prompt and context, return the response.
-    
-    Args:
-        prompt (str): The user's input.
-        context (str): Background context to guide the response.
-    
-    Returns:
-        str: The model's reply.
+    Retrieves user-specific context and generates an answer.
     """
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo",  # or "gpt-4o-mini" for cheaper/faster
-        messages=[
-            {"role": "system", "content": f"Context: {context}"},
-            {"role": "user", "content": prompt}
-        ]
+    start = time.time()
+    context = retrieve_context(prompt, user_email)
+
+    messages = [
+        {"role": "system", "content": f"Use this context to answer accurately:\n\n the response should respect : \n\n the user language {userlanguage} \n the dialect {dialect} \n the tone {tone} \n the urgency {urgency} \n\n  {context}"},
+        {"role": "user", "content": prompt},
+    ]
+
+    resp = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=messages
     )
-    return response.choices[0].message.content
 
+    print(f"⏱️ Response generated in {time.time() - start:.2f}s")
+    return resp.choices[0].message.content
 
-from openai import OpenAI
-import re
-client = OpenAI()
 
 def check_required_data(prompt: str, context: list) -> dict:
     system_prompt = """
-                    You are an intelligent assistant. Your job is to check whether the user's request contains enough required information or not.
+                    You are an intelligent assistant. Your task is to verify whether the user's latest request contains enough required information, considering both the current request and prior conversation context.
                     You must always return JSON only in this format:
 
                     {
@@ -130,7 +139,7 @@ def check_required_data(prompt: str, context: list) -> dict:
 
 
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-3.5-turbo",
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": f"Conversation:\n{context}\n\nLatest request: {prompt}"}
@@ -152,3 +161,70 @@ def check_required_data(prompt: str, context: list) -> dict:
             "need_details": "yes",
             "message": "⚠️ Failed to parse response. Please try again."
         }
+
+
+def retrieve_context(query: str, user_email: str, k: int = 2) -> str:
+    """
+    Retrieve top-k relevant chunks for a query from:
+    - The user's personal namespace (user_email)
+    - The shared system namespace ("system@diyadah-ai.com")
+    Both results are merged and sorted by similarity.
+    """
+    pc = Pinecone(api_key=PINECONE_API_KEY)
+
+    # Connect to Pinecone index
+    index = pc.Index(INDEX_NAME)
+    print(f"✅ Connected to Pinecone index '{INDEX_NAME}'\n")
+    emb = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=query
+    ).data[0].embedding
+
+    # Query user namespace
+    user_results = index.query(
+        namespace=user_email,
+        vector=emb,
+        top_k=k,
+        include_metadata=True
+    )
+
+    # Query system (shared) namespace
+    system_results = index.query(
+        namespace="system@diyadah-ai.com",
+        vector=emb,
+        top_k=k,
+        include_metadata=True
+    )
+
+    # Combine both result sets
+    all_matches = []
+    if "matches" in user_results:
+        all_matches.extend(user_results["matches"])
+    if "matches" in system_results:
+        all_matches.extend(system_results["matches"])
+
+    # Sort all results by similarity (descending)
+    all_matches = sorted(all_matches, key=lambda x: x.get("score", 0), reverse=True)
+
+    # Limit to top-k total
+    top_contexts = [m["metadata"]["text"] for m in all_matches[:k]]
+
+    if not top_contexts:
+        return "No relevant data found."
+
+    return "\n".join(top_contexts)
+
+
+
+def standard_result_parser(result):
+    if isinstance(result, dict) and result.get("status") == "success":
+        print("✅ Task completed successfully, stopping agent loop.")
+        return result.get("message", result)
+    elif isinstance(result, dict) and result.get("status") == "error":
+        print("❌ Error detected, stopping loop.")
+        return f"حدث خطأ: {result['message']}"
+    return result
+
+
+res = retrieve_context("prepare a darft email", "mohamed.ak@d10.sa")
+print(res)

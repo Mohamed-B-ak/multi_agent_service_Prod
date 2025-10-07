@@ -76,8 +76,7 @@ def planner(user_prompt: str, context: List[Dict] = None, llm_object = None) -> 
     Consider these available agents:
     - Marketing Agent → prepares campaigns, segments audiences, outreach via WhatsApp/Email
     - Sales Agent → CRM tasks, personalized sales campaigns, WhatsApp/Email follow-ups
-    - Unified Customer Service Agent → handles customer queries, generates contextual replies, sends via WhatsApp/Email
-    - Siyadah Helper Agent → answers questions about the Siyadah platform
+    - DB Agent → Answer questions related to database operations (CRUD)
 
     IMPORTANT NOTES:
     - Always assign subtasks ONLY to these agents.

@@ -23,15 +23,37 @@ class MongoDBListCollectionsTool(BaseTool):
         super().__init__(**kwargs)
         self.db = connection.get_db()
 
-    def _run(self) -> str:
-        collections = self.db.list_collection_names()
-        collection_info = {}
-        for collection_name in collections:
-            collection = self.db[collection_name]
-            sample_document = collection.find_one()
-            collection_info[collection_name] = list(sample_document.keys()) if sample_document else "No data"
-        
-        return str(collection_info)
+    def _run(self):
+        """
+        Lists all collections and their sample fields in the connected MongoDB database.
+        Returns structured output for CrewAI compatibility.
+        """
+        try:
+            collections = self.db.list_collection_names()
+            collection_info = {}
+
+            for collection_name in collections:
+                collection = self.db[collection_name]
+                sample_document = collection.find_one()
+                collection_info[collection_name] = (
+                    list(sample_document.keys()) if sample_document else []
+                )
+
+            return {
+                "status": "success",
+                "message": f"✅ Found {len(collections)} collections in the database.",
+                "count": len(collections),
+                "collections": collection_info
+            }
+
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": f"❌ Error listing collections: {e}",
+                "count": 0,
+                "collections": {}
+            }
+
 
     class Config:
         arbitrary_types_allowed = True
@@ -81,13 +103,45 @@ class MongoDBUpdateDocumentTool(BaseTool):
         super().__init__(**kwargs)
         self.db = connection.get_db()
 
-    def _run(self, collection_name: str, filter_query: dict, update_data: dict) -> str:
-        collection = self.db[collection_name]
-        result = collection.update_one(filter_query, {'$set': update_data})
-        if result.matched_count > 0:
-            return f"Document updated. Matched: {result.matched_count}, Modified: {result.modified_count}"
-        else:
-            return "No document found to update."
+    def _run(self, collection_name: str, filter_query: dict, update_data: dict):
+        """
+        Updates one document in a MongoDB collection and returns structured output.
+        """
+        try:
+            collection = self.db[collection_name]
+            result = collection.update_one(filter_query, {"$set": update_data})
+
+            if result.matched_count > 0:
+                return {
+                    "status": "success",
+                    "message": (
+                        f"✅ Document updated in '{collection_name}'. "
+                        f"Matched: {result.matched_count}, Modified: {result.modified_count}"
+                    ),
+                    "collection": collection_name,
+                    "matched_count": result.matched_count,
+                    "modified_count": result.modified_count,
+                    "filter": filter_query,
+                    "update_data": update_data
+                }
+            else:
+                return {
+                    "status": "empty",
+                    "message": f"ℹ️ No document found in '{collection_name}' matching filter {filter_query}.",
+                    "collection": collection_name,
+                    "matched_count": 0,
+                    "modified_count": 0,
+                    "filter": filter_query,
+                    "update_data": update_data
+                }
+
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": f"❌ Error updating document in '{collection_name}': {e}",
+                "collection": collection_name
+            }
+
 
     class Config:
         arbitrary_types_allowed = True
@@ -101,13 +155,41 @@ class MongoDBDeleteDocumentTool(BaseTool):
         super().__init__(**kwargs)
         self.db = connection.get_db()
 
-    def _run(self, collection_name: str, filter_query: dict) -> str:
-        collection = self.db[collection_name]
-        result = collection.delete_one(filter_query)
-        if result.deleted_count > 0:
-            return f"Document deleted. Deleted count: {result.deleted_count}"
-        else:
-            return "No document found to delete."
+    def _run(self, collection_name: str, filter_query: dict):
+        """
+        Deletes one document from a MongoDB collection and returns structured output.
+        """
+        try:
+            collection = self.db[collection_name]
+            result = collection.delete_one(filter_query)
+
+            if result.deleted_count > 0:
+                # ✅ Structured success response
+                return {
+                    "status": "success",
+                    "message": f"✅ Document deleted successfully from '{collection_name}'.",
+                    "collection": collection_name,
+                    "deleted_count": result.deleted_count,
+                    "filter": filter_query
+                }
+            else:
+                # ✅ Structured empty response (no match found)
+                return {
+                    "status": "empty",
+                    "message": f"ℹ️ No document found in '{collection_name}' matching filter {filter_query}.",
+                    "collection": collection_name,
+                    "deleted_count": 0,
+                    "filter": filter_query
+                }
+
+        except Exception as e:
+            # ✅ Structured error response
+            return {
+                "status": "error",
+                "message": f"❌ Error deleting document from '{collection_name}': {e}",
+                "collection": collection_name
+            }
+
 
     class Config:
         arbitrary_types_allowed = True
@@ -121,15 +203,38 @@ class MongoDBReadDataTool(BaseTool):
         super().__init__(**kwargs)
         self.db = connection.get_db()
 
-    def _run(self, collection_name: str, filter_query: Optional[dict] = None, limit: int = 10) -> str:
-        collection = self.db[collection_name]
-        cursor = collection.find(filter_query or {}).limit(limit)
-        data = list(cursor)
-        if data:
-            return str(data)
-        else:
-            return "No data found."
+    def _run(self, collection_name: str, filter_query: Optional[dict] = None, limit: Optional[int] = 100) -> str:
+        try:
+            collection = self.db[collection_name]
+            cursor = collection.find(filter_query or {}).limit(limit)
+            data = list(cursor)
 
+            if data:
+                # ✅ Structured success response
+                return {
+                    "status": "success",
+                    "message": f"✅ Retrieved {len(data)} records from '{collection_name}'.",
+                    "collection": collection_name,
+                    "count": len(data),
+                    "data": data[:limit]
+                }
+            else:
+                # ✅ Structured 'no data' response
+                return {
+                    "status": "empty",
+                    "message": f"ℹ️ No documents found in '{collection_name}' for filter {filter_query or {}}.",
+                    "collection": collection_name,
+                    "count": 0,
+                    "data": []
+                }
+
+        except Exception as e:
+            # ✅ Structured error response
+            return {
+                "status": "error",
+                "message": f"❌ Error reading data from '{collection_name}': {e}"
+            }
+        
     class Config:
         arbitrary_types_allowed = True
 
@@ -169,7 +274,11 @@ class MongoDBCountDocumentsTool(BaseTool):
         collection = self.db[collection_name]
         scoped_query = self._apply_user_scope(filter_query)
         count = collection.count_documents(scoped_query)
-        return f"Number of documents in '{collection_name}' for {self.user_email}: {count}"
+        return {
+        "status": "success",
+        "count": count,
+        "message": f"✅ Current number of clients: {count}"
+    }
 
     class Config:
         arbitrary_types_allowed = True

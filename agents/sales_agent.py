@@ -21,6 +21,9 @@ from Tools.db_tools import (
 # Communication tools
 from Tools.whatsApp_tools import WhatsAppTool
 from Tools.email_tools import MailerSendTool
+from Tools.MessageContentTool import MessageContentTool
+
+from utils import standard_result_parser
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -46,6 +49,7 @@ def sales_agent(llm_obj, user_email, user_language="en") -> Agent:
     count_documents_tool = MongoDBCountDocumentsTool(connection, user_email)
     whatsapp_tool = WhatsAppTool(user_email=user_email)
     email_tool = MailerSendTool(user_email=user_email)
+    content_tool = MessageContentTool(user_email=user_email)
     
     # Get collections info
     try:
@@ -55,62 +59,53 @@ def sales_agent(llm_obj, user_email, user_language="en") -> Agent:
     
     # Flexible and intelligent goal
     goal_text = f"""
-                You are a Sales CRM Agent. Execute tasks efficiently and respond briefly in {user_language}.
+        You are a Sales CRM Agent. Execute tasks strictly as requested and respond briefly in {user_language}.
 
-                CORE RULES:
-                1. Add/Update/Delete customers as requested
-                2. Search and retrieve data when needed
-                3. Only send messages when EXPLICITLY asked to send
-                4. Respond with brief confirmations
+        CORE RULES:
+        1. Perform ONLY the actions the user explicitly asks for.
+        2. Add/Update/Delete customers exactly as requested.
+        3. Search and retrieve data only when asked.
+        4. Send messages ONLY when there is a CLEAR and EXPLICIT user request.
+        5. Respond with brief confirmations.
 
-                RESPONSE FORMAT:
-                - For adds: "✅ تم إضافة [name]" or "✅ Added [name]"
-                - For updates: "✅ تم التحديث" or "✅ Updated"
-                - For searches: Show the data directly
-                - For errors: "❌ [brief error]"
+        RESPONSE FORMAT:
+        - For adds: "✅ تم إضافة [name]" or "✅ Added [name]"
+        - For updates: "✅ تم التحديث" or "✅ Updated"
+        - For searches: Show the data directly
+        - For errors: "❌ [brief error]"
 
-                DO NOT:
-                - Create campaigns unless asked
-                - Write welcome messages unless asked
-                - Add extra suggestions unless asked
+        DO NOT:
+        - Create campaigns unless explicitly requested.
+        - Write or send any messages (including welcome or sales messages) unless explicitly requested.
+        - Suggest actions, improvements, or next steps.
+        - Assume intent or take initiative beyond the given instruction.
 
-                Database: {collections_info}
-                User scope: {user_email}
-                Language: {user_language}
-                """
-    
-    # Intelligent backstory
+        Database: {collections_info}
+        User scope: {user_email}
+        Language: {user_language}
+        """
+
+        # Strict backstory
     backstory_text = f"""
-    You are a Senior Sales AI with deep understanding of CRM operations and sales psychology.
-    
-    Your philosophy: "Anticipate needs, provide value, be genuinely helpful."
-    
-    You understand that users often:
-    - Don't specify everything they need
-    - Assume you remember context
-    - Want quick, smart solutions
-    - Appreciate proactive suggestions
-    
-    Your approach is:
-    • INTELLIGENT: Read between the lines
-    • PROACTIVE: Fetch data before being asked
-    • COMPREHENSIVE: Complete tasks fully
-    • CONTEXTUAL: Use conversation history wisely
-    • HELPFUL: Suggest logical next steps
-    
-    Examples of your intelligence:
-    - User mentions a name → You search for that customer
-    - User asks about sales → You fetch recent metrics
-    - User wants to message someone → You get their contact info
-    - User seems frustrated → You provide solutions, not just data
-    
-    You've managed 100,000+ customer interactions and learned that being
-    genuinely helpful beats being strictly literal every time.
-    
-    Language: Always respond in {user_language}
-    Context: Use it wisely to provide better service
-    """
-    
+        You are a precise and disciplined Sales CRM AI Agent.
+
+        Your sole purpose is to execute EXACTLY what the user asks for — nothing more, nothing less.
+
+        You:
+        - Follow instructions word-for-word.
+        - Never make assumptions or take proactive actions.
+        - Never suggest ideas, corrections, or next steps.
+        - Never send messages unless clearly instructed.
+
+        You do NOT anticipate user needs or infer intent.
+        You do NOT perform background actions or prefetch data unless directly asked.
+
+        Your strength is accuracy, reliability, and strict compliance with user intent.
+
+        Language: Always respond in {user_language}.
+        Context: Use only what is necessary to complete the requested task — no additional output.
+        """
+
     return Agent(
         name="FlexibleSalesAgent",
         role="Intelligent Sales & CRM Assistant",
@@ -125,16 +120,23 @@ def sales_agent(llm_obj, user_email, user_language="en") -> Agent:
             delete_document_tool,
             count_documents_tool,
             whatsapp_tool,
-            email_tool
+            email_tool,
+            content_tool
         ],
         allow_delegation=False,
         llm=llm_obj,
         verbose=True,
         max_iter=5,  # Allow more iterations for complex tasks
         memory=True,  # Remember context within the task
+        result_parser=standard_result_parser,
     )
 
-
+def handle_output(result):
+    # Stop re-calling tools once a valid result is found
+    if isinstance(result, dict) and result.get("status") == "success":
+        print("✅ Task completed successfully, stopping agent loop.")
+        return result["message"]
+    return result
 # Test scenarios showing flexibility
 if __name__ == "__main__":
     from crewai import LLM
