@@ -5,6 +5,8 @@ from typing import Any, Optional
 import os
 import uuid
 from datetime import datetime
+from pydantic import BaseModel
+from typing import Optional, Dict
 # Base connection class (not inheriting from BaseTool)
 class MongoDBConnection:
     def __init__(self, connection_string: str, db_name: str):
@@ -194,9 +196,15 @@ class MongoDBDeleteDocumentTool(BaseTool):
     class Config:
         arbitrary_types_allowed = True
 
+class MongoDBReadDataToolSchema(BaseModel):
+    collection_name: str
+    filter_query: Optional[Dict] = None
+    limit: Optional[int] = 100
+
 class MongoDBReadDataTool(BaseTool):
     name: str = "MongoDB Read Data Tool"
     description: str = "Reads data from a specified collection."
+    args_schema = MongoDBReadDataToolSchema
     db: Any = None
 
     def __init__(self, connection: MongoDBConnection, **kwargs):
@@ -210,7 +218,6 @@ class MongoDBReadDataTool(BaseTool):
             data = list(cursor)
 
             if data:
-                # ✅ Structured success response
                 return {
                     "status": "success",
                     "message": f"✅ Retrieved {len(data)} records from '{collection_name}'.",
@@ -219,7 +226,6 @@ class MongoDBReadDataTool(BaseTool):
                     "data": data[:limit]
                 }
             else:
-                # ✅ Structured 'no data' response
                 return {
                     "status": "empty",
                     "message": f"ℹ️ No documents found in '{collection_name}' for filter {filter_query or {}}.",
@@ -229,12 +235,11 @@ class MongoDBReadDataTool(BaseTool):
                 }
 
         except Exception as e:
-            # ✅ Structured error response
             return {
                 "status": "error",
                 "message": f"❌ Error reading data from '{collection_name}': {e}"
             }
-        
+
     class Config:
         arbitrary_types_allowed = True
 

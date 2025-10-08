@@ -11,7 +11,7 @@ class MessageContentTool(BaseTool):
 
     user_email: str  # ✅ for logging or context if needed
 
-    def _run(self, channel: str, subject: str, message: str, tone: str = "professional") -> str:
+    def _run(self, channel: str, subject: str, message: str) -> str:
         """
         Prepare Email or WhatsApp message content without sending.
         Args:
@@ -26,7 +26,6 @@ class MessageContentTool(BaseTool):
             prompt = f"""
             You are a professional content writer and marketing assistant.
             Your task is to prepare a {channel.upper()} message with the following:
-            - Tone: {tone}
             - Subject: {subject}
             - Message: {message}
 
@@ -68,15 +67,11 @@ class MessageContentTool(BaseTool):
                 "⚠️ This content is only prepared — it has NOT been sent."
             )
             return {
-            "status": "success",
-            "channel": channel,
             "subject": new_subject,
             "content": new_body,
             "message": preview 
         }
 
         except Exception as e:
-            return {
-            "status": "error",
-            "message": f"❌ Error preparing {channel} content: {e}"
-        }
+            return f"❌ Error preparing {channel} content: {e}"
+        

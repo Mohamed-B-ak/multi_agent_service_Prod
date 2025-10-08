@@ -122,6 +122,8 @@ def get_workers(user_email, user_language, knowledge_base, selected_agents, cont
 from crewai import Task
 
 from crewai import Task
+from crewai import Task
+
 def get_understand_and_execute_task(
     user_prompt,
     user_email,
@@ -129,68 +131,82 @@ def get_understand_and_execute_task(
     dialect,
     tone,
     urgency,
-    selected_agents=None,  # list or None
+    selected_agents=None,
     context_window="",
 ):
     """
-    Build ONE Task that integrates multiple Siyadah specialized agents if needed.
-    Always returns a single Task object.
-
-    Rule:
-    - If selected_agents is None or empty, include ALL agents.
+    Dynamically build one unified Task that coordinates Siyadah AI agents.
+    ✅ NOW WITH: Strict validation, step verification, and guaranteed execution.
     """
 
     # 🧩 Define agent-specific profiles
     agent_profiles = {
         "marketing_agent": """
         🎯 **MARKETING AGENT**
-        - Focus: audience-wide communication, campaigns, promotions, and general engagement.
-        - Channels: WhatsApp, Email, social media.
+        - Focus: communication, engagement, promotions, and campaigns.
+        - Channels: WhatsApp, Email, and social media.
+        - Core Strengths:
+            - Build and deliver personalized marketing content.
+            - Manage multi-channel promotional campaigns.
+            - Engage customers via automated WhatsApp and Email messages.
         - Capabilities:
-            1. 📊 Campaign Management (multi-channel)
-            2. 🎨 Content Creation and Personalization
-            3. 📧 Email + WhatsApp Messaging
-            4. 🗂️ Customer Segmentation (via database queries)
-            5. 📈 Marketing Analytics (clicks, opens, engagement)
-            6. send email and whatsApp messages 
+            1. 📊 Campaign Management & Scheduling (multi-channel)
+            2. 🎨 Content Creation & Personalization for each audience
+            3. 💬 Send and manage WhatsApp & Email Messaging campaigns
+            4. 🗂️ Customer Segmentation using database queries
+            5. 📈 Analyze campaign performance (clicks, opens, engagement)
+            6. 🧠 Collaborate with Data Agent for targeting insights
+            7. ✅ Can both prepare and send messages directly (WhatsApp / Email)
         """,
 
         "sales_agent": """
         💼 **SALES AGENT**
-        - Focus: lead nurturing, follow-ups, deals, offers, and conversions.
-        - Channels: WhatsApp, Email, CRM.
+        - Focus: lead nurturing, follow-ups, offers, and conversions.
+        - Channels: WhatsApp, Email, and CRM.
+        - Core Strengths:
+            - Communicate with leads and customers via WhatsApp or Email.
+            - Manage pipelines, deals, and personalized offers.
+            - Track interactions and follow-up responses in the CRM.
         - Capabilities:
-            1. 🤝 Lead Management and Follow-ups
-            2. 💬 Personalized WhatsApp/Email Outreach
-            3. 💰 Deal Tracking and Pipeline Updates
-            4. 📊 CRM Operations (retrieve/update lead data)
-            5. 🔍 Post-Campaign Follow-ups
-            6. send email and whatsApp messages 
+            1. 🤝 Lead & Deal Management (status updates, follow-ups)
+            2. 💬 Send and manage personalized WhatsApp & Email messages
+            3. 💰 Offer Creation, Quotation, and Pipeline Tracking
+            4. 📊 CRM Database Operations (Create, Read, Update, Delete)
+            5. 🧠 Collaborate with Marketing & Data Agents for lead insights
+            6. ✅ Can prepare, send, and confirm WhatsApp / Email messages
         """,
 
         "data_agent": """
         🗂️ **DATA AGENT**
-        - Focus: database operations, reports, and structured data queries.
+        - Focus: database operations, analytics, and structured reporting.
+        - Core Strengths:
+            - Handle data integrity, analytics, and reporting for all agents.
+            - Support marketing and sales with data-driven insights.
         - Capabilities:
-            1. 📦 CRUD operations (create, read, update, delete)
-            2. 📋 Data validation and consistency checks
-            3. 📈 Generate structured client reports
-            4. 🔍 Handle customer records and analytics datasets
+            1. 📦 CRUD Operations (Create, Read, Update, Delete)
+            2. 📋 Data Validation & Consistency Checks
+            3. 📈 Generate Reports and Analytical Summaries
+            4. 🔍 Manage and retrieve customer records
+            5. 🧠 Provide analytics and segmentation support to other agents
+            6. ✅ Can verify and store marketing/sales actions in the database
         """,
 
         "system_agent": """
         ⚙️ **SYSTEM AGENT**
-        - Focus: technical or configuration issues (e.g., login, API setup, environment errors).
+        - Focus: configuration, integration, and troubleshooting.
+        - Core Strengths:
+            - Ensure API connections, database links, and tools work correctly.
+            - Provide system-level guidance and error resolution.
         - Capabilities:
-            1. 🛠️ Diagnose platform issues
-            2. 🧩 Adjust configuration or environment variables
-            3. 🧾 Provide setup or troubleshooting guidance
+            1. 🧩 Diagnose configuration or environment issues
+            2. 🔧 Manage API keys, DB connections, and credentials
+            3. 🧾 Provide setup guidance and automated recovery actions
+            4. ✅ Support other agents by ensuring tools function correctly
         """,
     }
 
     # 🧠 Normalize the selected agents list
     if not selected_agents:
-        # If no agents are provided → include all
         selected_agents = list(agent_profiles.keys())
     elif isinstance(selected_agents, str):
         selected_agents = [selected_agents]
@@ -202,85 +218,268 @@ def get_understand_and_execute_task(
     )
 
     # 🧠 Display which agents are active
-    active_agents_display = ", ".join([a.upper() for a in selected_agents])
+    active_agents_display = ", ".join(a.upper() for a in selected_agents)
 
-    # 🧩 Build ONE comprehensive Task
+    # 🧩 Build the unified Task with STRICT EXECUTION RULES
     return Task(
         description=f"""
-        You are now activating the following Siyadah AI agents together:  
+        You are now activating the following Siyadah AI agents together:
         🧠 {active_agents_display}
 
-        The user has issued this request or list of tasks (1., 2., ...):
+        The user has requested:
         >>> {user_prompt}
 
         ---
         🧾 **Context Window**:
         {context_window}
 
-        👤 **User Email**: {user_email}  
-        🌍 **Language**: {user_language}  
-        🌍 **Dialect**: {dialect}  
-        🎭 **Tone**: {tone}  
-        ⏱️ **Urgency**: {urgency}  
+        👤 **User Email**: {user_email}
+        🌍 **Language**: {user_language}
+        🌍 **Dialect**: {dialect}
+        🎭 **Tone**: {tone}
+        ⏱️ **Urgency**: {urgency}
 
         ---
         ### 🔧 Agent Capabilities:
         {merged_agent_descriptions}
 
         ---
-        🧠 **Execution Protocol**
-        1. Respect tone and urgency in your reply.
-        2. Always respond in {user_language} ({dialect} dialect if applicable).
-        3. Use only the listed agents’ capabilities — they collaborate internally.
-        4. Do not simulate or mention the orchestration layer.
-        5. Produce a clear, final result (no thought process).
-        6. Suggest a next step in the form of a question, based on the user input, the produced result, and the conversation context.
-        7. If a misunderstanding or irrelevant response occurred in the previous turn, begin your message with a brief, polite apology (e.g., “Sorry for the confusion earlier,” or “My apologies, I misunderstood your previous question”). Then proceed directly with the correct and concise answer.
+        🎯 **MANDATORY EXECUTION PROTOCOL** (MUST FOLLOW)
+        
+        1️⃣ **Task Analysis**
+           - Break down the user request into sequential steps
+           - Identify ALL required actions (read → create → send, etc.)
+           - Determine which agent handles each step
+        
+        2️⃣ **Sequential Execution** (CRITICAL)
+           - Execute steps in order, ONE AT A TIME
+           - Complete each step BEFORE moving to the next
+           - Use actual tools, not descriptions
+           
+        3️⃣ **Tool Usage Rules**
+           - Database operations → Use MongoDB Read/Write/Update/Delete tools
+           - Content creation → Use MessageContentTool
+           - WhatsApp sending → Use WhatsApp Tool (must show in logs)
+           - Email sending → Use MailerSend Tool (must show in logs)
+        
+        4️⃣ **Step Verification** (MANDATORY)
+           After EACH step, verify:
+           ✅ Tool was actually called (check your tool usage logs)
+           ✅ Tool returned success status
+           ✅ Output contains concrete data (phone number, message ID, etc.)
+           
+        5️⃣ **Multi-Step Task Example**:
+           User: "Send a discount offer to Mohamed"
+           
+           ✅ CORRECT Execution:
+           Step 1: Use MongoDB Read Tool → Get Mohamed's phone: +21653844063
+           Step 2: Use MessageContentTool → Create offer message
+           Step 3: Use WhatsApp Tool → Send message to +21653844063
+           Step 4: Verify → Check WhatsApp Tool returned success
+           Final: "✅ تم إرسال عرض الخصم إلى محمد (+21653844063)"
+           
+           ❌ WRONG Execution:
+           Step 1: Get phone number
+           Step 2: Skip sending
+           Final: "✅ تم الإرسال" ← LIE! No tool was used!
 
-        🚨 **Critical Rules**
-        - No hallucinations, no placeholders
-        - Use only verified contextual data (scoped to {user_email})
-        - Respect urgency: “high” = concise, “low” = detailed
-        - Keep a professional and polite tone.
-        - Apologize only when the system misinterprets or provides an irrelevant answer — not for normal uncertainty or lack of data.
+        ---
+        🚨 **CRITICAL VALIDATION RULES** (NEVER VIOLATE)
+        
+        ❌ **FORBIDDEN ACTIONS**:
+        1. Claiming "تم الإرسال" / "Message sent" without WhatsApp/Email Tool execution
+        2. Skipping any step in a multi-step task
+        3. Assuming completion based on partial results
+        4. Using tool results from previous context without re-verification
+        5. Fabricating phone numbers, emails, or customer data
+        6. Saying "success" when a tool failed or wasn't called
+        
+        ✅ **REQUIRED ACTIONS**:
+        1. Show tool name for EVERY action taken
+        2. Display tool output/result for verification
+        3. Confirm each step completed successfully before proceeding
+        4. If ANY step fails → stop and report the failure clearly
+        5. For send operations → MUST use actual send tool (WhatsApp/Email)
+        6. For database operations → MUST use actual MongoDB tool
+        
+        ---
+        📋 **Step-by-Step Execution Checklist**
+        
+        Before claiming completion, verify you have:
+        □ Identified all required steps from user request
+        □ Executed EACH step using the appropriate tool
+        □ Verified EACH tool returned success
+        □ Collected concrete evidence (IDs, numbers, confirmations)
+        □ NOT skipped any steps
+        □ NOT assumed anything without verification
+        
+        ---
+        🔍 **Self-Verification Questions** (Ask yourself before responding)
+        
+        1. Did I actually call the required tools? (Check your tool usage log)
+        2. Did each tool return success? (Check tool outputs)
+        3. Do I have concrete proof of completion? (Message ID, phone number, etc.)
+        4. Did I skip any steps? (Re-read the user request)
+        5. Am I claiming something I didn't actually do? (Be honest)
+        
+        If you answer "NO" to any question → DO NOT claim success!
+        
+        ---
+        🎭 **Response Guidelines**
+        
+        1. Respond entirely in {user_language} ({dialect} dialect if applicable)
+        2. Respect {tone} tone and {urgency} urgency level
+        3. Keep reasoning implicit — only show final actionable output
+        4. Never reveal orchestration internals
+        5. Never fabricate data — only use verified context scoped to {user_email}
+        6. If uncertain → ask ONE clarifying question
+        
+        ---
+        ⚠️ **Error Handling**
+        
+        If ANY step fails:
+        1. Stop execution immediately
+        2. Report which step failed
+        3. Explain why it failed (tool error, missing data, etc.)
+        4. Do NOT proceed to next steps
+        5. Do NOT claim partial success as full success
+        
+        Example:
+        "❌ فشل الخطوة 2: لم أتمكن من إرسال الرسالة عبر الواتساب. السبب: رقم الهاتف غير صحيح."
+        
+        ---
+        🎯 **Final Reminder**
+        
+        Your job is to EXECUTE, not to DESCRIBE.
+        - "I will send..." ❌ Wrong
+        - "Sending..." ❌ Wrong  
+        - "✅ Message sent to +21653844063 via WhatsApp Tool" ✅ Correct
+        
+        ALWAYS show proof of execution!
         """,
 
-    expected_output = f"""
-        Return ONLY the final result in {user_language} ({dialect} dialect if applicable).  
-        If a misunderstanding occurred previously, begin with a short apology, then provide the correct result.
-        After the result, always suggest a next step in the form of a question, based on:
+        expected_output=f"""
+        Return ONLY the final verified result in {user_language} ({dialect} dialect if applicable).
 
-            the user’s input,
-
-            the result produced,
-
-            and the current conversation context.
-            
-        The result should be:
-        - The actual output requested by the user (e.g., content, data, message, summary, etc.).  
-        - Clean, ready to use, and formatted appropriately for the task.  
-
-        DO NOT include:
-        - Explanations or reasoning steps.  
-        - Phrases like “Here is the result” or “I have completed your request.”  
-        - System or agent commentary.  
-        - Placeholders or unfinished content.  
-
-        ✅ Example outputs:
-        - Arabic: "تم تجهيز التقرير الشهري مع التحليل الكامل للأداء."  
-        ➡️ Next step: "هل ترغب في أن أرسل هذا التقرير عبر البريد الإلكتروني لفريقك؟"  
-
-        - English: "Customer segmentation data prepared with 120 active leads."  
-        ➡️ Next step: "Would you like me to create a follow-up campaign for these leads?"  
-
-        - Arabic (content): "مرحباً! يسعدنا إعلامك بأن عرضنا الجديد متاح الآن."  
-        ➡️ Next step: "هل ترغب أن أرسل هذا العرض الآن لقاعدة عملائك؟"  
-
-        - English (content): "Hi! Enjoy 30% off your first purchase this week."  
-        ➡️ Next step: "Should I schedule this message to go out via WhatsApp or Email?"  
-    """
+        ---
+        ✅ **REQUIRED OUTPUT STRUCTURE**
+        
+        Your response MUST contain:
+        
+        1️⃣ **Execution Summary** (brief)
+           - What was requested
+           - What was actually done (with tool names)
+           
+        2️⃣ **Concrete Evidence** (MANDATORY)
+           - For database: Show actual data retrieved
+           - For sending: Show recipient phone/email + send confirmation
+           - For content: Show the actual content created
+           
+        3️⃣ **Status Indicator** (clear)
+           - ✅ Success with specific details
+           - ❌ Failure with clear reason
+           - ⚠️ Partial completion with explanation
+           
+        4️⃣ **Next Step Question** (contextual)
+           - Relevant follow-up based on what was done
+           - Should guide the user naturally
+        
+        ---
+        📋 **OUTPUT EXAMPLES**
+        
+        Example 1 - Database Read:
+        "✅ تم استخراج بيانات محمد من قاعدة البيانات:
+        - الاسم: محمد أكاشا
+        - الهاتف: +21653844063
+        - البريد: mohamed.ak@d10.sa
+        
+        ➡️ الخطوة التالية: هل تريد إرسال رسالة لمحمد الآن؟"
+        
+        Example 2 - Content Creation:
+        "✅ تم إنشاء محتوى العرض:
+        
+        'مرحباً محمد! 🎉
+        نقدم لك عرضاً خاصاً: خصم 30% على جميع منتجاتنا.
+        العرض ساري حتى نهاية الشهر.'
+        
+        ⚠️ المحتوى جاهز لكن لم يتم الإرسال بعد.
+        
+        ➡️ الخطوة التالية: هل تريد إرسال هذا العرض لمحمد الآن؟"
+        
+        Example 3 - Complete Send Operation:
+        "✅ تم إرسال عرض الخصم 30% بنجاح:
+        - المستلم: محمد أكاشا
+        - الهاتف: +21653844063
+        - القناة: واتساب
+        - الوقت: {datetime.now().strftime('%H:%M')}
+        - التأكيد: WhatsApp Tool returned success
+        
+        ➡️ الخطوة التالية: هل تريد إرسال عروض مشابهة لعملاء آخرين؟"
+        
+        Example 4 - Multi-Step Task:
+        "✅ تم تنفيذ جميع الخطوات بنجاح:
+        
+        الخطوة 1 ✅: استخراج رقم هاتف محمد (+21653844063)
+        الخطوة 2 ✅: إنشاء محتوى العرض (خصم 30%)
+        الخطوة 3 ✅: إرسال الرسالة عبر الواتساب
+        
+        النتيجة النهائية: تم إرسال العرض إلى محمد بنجاح.
+        
+        ➡️ الخطوة التالية: هل تريد تتبع استجابة محمد للعرض؟"
+        
+        Example 5 - Failure Case:
+        "❌ فشل التنفيذ في الخطوة 2:
+        
+        الخطوة 1 ✅: استخراج رقم الهاتف (+21653844063)
+        الخطوة 2 ❌: فشل إنشاء المحتوى
+        السبب: MessageContentTool returned error - missing template
+        الخطوة 3 ⏸️: لم يتم التنفيذ (بسبب فشل الخطوة 2)
+        
+        ➡️ الحل المقترح: هل تريد تحديد نص الرسالة يدوياً؟"
+        
+        ---
+        🚨 **CRITICAL OUTPUT RULES**
+        
+        ❌ DO NOT output:
+        - Generic success messages without details
+        - Claims of sending without tool confirmation
+        - Reasoning or thought process
+        - System or orchestration details
+        - Placeholder data or assumptions
+        
+        ✅ DO output:
+        - Specific, verifiable results
+        - Tool names and their outputs
+        - Concrete evidence (phone numbers, IDs, etc.)
+        - Clear success/failure indicators
+        - Relevant next-step question
+        
+        ---
+        📊 **Validation Before Submitting Response**
+        
+        Ask yourself:
+        1. ✅ Did I show which tools were actually used?
+        2. ✅ Did I include concrete evidence?
+        3. ✅ Is my success claim backed by tool output?
+        4. ✅ Did I complete ALL requested steps?
+        5. ✅ Did I provide a relevant next-step question?
+        
+        If ALL answers are YES → Submit response
+        If ANY answer is NO → Revise response
+        
+        ---
+        🎯 **Remember**
+        
+        Quality > Speed
+        Accuracy > Assumptions  
+        Proof > Claims
+        Execution > Description
+        
+        The user trusts you to EXECUTE, not just to SAY you executed.
+        ALWAYS provide concrete proof of what you did!
+        """
     )
-    
+  
 def detect_language(text: str) -> str:
     langid.set_languages(['fr', 'en', 'ar'])
     lang, _ = langid.classify(text)
@@ -528,6 +727,11 @@ async def process_prompt(request: UserPromptRequest):
         selected_agents = understanding_res.to_dict().get("selected_agents")
     except:
         selected_agents = []
+
+    try:
+        meaning = understanding_res.to_dict().get("meaning")
+    except:
+        meaning = user_prompt
         
     from utils import respond_to_user, check_required_data
     if understanding_res.response_type == "simple":
@@ -535,7 +739,7 @@ async def process_prompt(request: UserPromptRequest):
             "final_output": respond_to_user(user_prompt, user_email, userlanguage, dialect, tone, urgency),
         })
 
-    confirmation = check_required_data(user_prompt, redis_context_window)
+    confirmation = check_required_data(meaning, redis_context_window)
     if isinstance(confirmation, dict):
         if confirmation["need_details"] == "yes":
             return JSONResponse(content={

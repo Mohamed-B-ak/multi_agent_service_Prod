@@ -9,42 +9,48 @@ from crewai.tools import BaseTool
 from pymongo import MongoClient
 from whatsapp_client_python.whatsapp_client import WhatsAppClient
 
-# ✅ Apply nest_asyncio only on Windows (local dev)
+# ✅ Apply nest_asyncio only on Windows (for local dev)
 if platform.system() == "Windows":
     import nest_asyncio
     nest_asyncio.apply()
 
-# Shared thread executor for running async in sync contexts
+# Shared thread executor for running async code in sync contexts
 _EXECUTOR = ThreadPoolExecutor(max_workers=1)
 
+
 class WhatsAppTool(BaseTool):
-    name: str = "WhatsApp Tool"
+    # ✅ Tool name must match exactly what you reference in agent goals/backstory
+    name: str = "WhatsAppTool"
     description: str = (
-        "Use for sending WhatsApp messages. Args: to_number(str), message(str). "
+        "Send WhatsApp messages to a recipient. "
+        "Args: to_number(str), message(str). "
         "Fetches WhatsApp credentials dynamically from MongoDB based on user_email."
     )
 
-    # ✅ declare user_email as a Pydantic field
+    # ✅ Required user context
     user_email: str
 
-    # --- SYNC entrypoint (CrewAI may call this) ---
+    # --- SYNC entrypoint (CrewAI often calls this) ---
     def _run(self, to_number: str, message: str) -> str:
-        """Sync fallback: runs async code in a background thread"""
+        """Runs async code in a background thread (CrewAI compatibility)."""
         try:
+            print(f"[TOOL] WhatsAppTool called (sync) → sending to {to_number}")
             future = _EXECUTOR.submit(lambda: asyncio.run(self._arun(to_number, message)))
             result = future.result()
-            # ✅ Pass through if _arun() already returns structured dict
-            if isinstance(result, dict):
-                return result
 
-            # ✅ Wrap plain string responses
-            return {"status": "success", "message": str(result)}
+            # ✅ Ensure plain text return for CrewAI
+            if isinstance(result, dict):
+                return result.get("message", str(result))
+
+            return str(result)
 
         except Exception as e:
-            return {"status": "error", "message": f"❌ WhatsApp error (sync): {e}"}
+            return f"❌ WhatsApp error (sync): {e}"
 
-    # --- ASYNC entrypoint (preferred when supported) ---
+    # --- ASYNC entrypoint (preferred if supported by environment) ---
     async def _arun(self, to_number: str, message: str) -> str:
+        """Actual WhatsApp sending logic (async)."""
+
         # Step 1: Fetch WhatsApp credentials
         try:
             mongo_client = MongoClient(os.getenv("MONGO_DB_URI"))
@@ -53,47 +59,45 @@ class WhatsAppTool(BaseTool):
 
             user_doc = collection.find_one({"userEmail": self.user_email})
             if not user_doc:
-                return f"❌ No credentials found for {self.user_email}"
+                return f"❌ No WhatsApp credentials found for {self.user_email}"
 
             whatsapp_doc = user_doc.get("whatsapp", {})
             session_name = whatsapp_doc.get("sessionName")
             api_key = whatsapp_doc.get("apiKey")
 
             if not session_name or not api_key:
-                return f"❌ WhatsApp credentials are missing for {self.user_email}"
+                return f"❌ WhatsApp credentials missing for {self.user_email}"
 
         except Exception as e:
-            return f"❌ Error fetching WhatsApp credentials: {str(e)}"
+            return f"❌ Error fetching WhatsApp credentials: {e}"
 
         # Step 2: Send WhatsApp message
         try:
+            print(f"[TOOL] Sending WhatsApp message via session '{session_name}' to {to_number}")
             async with WhatsAppClient(session_name=session_name, api_key=api_key) as client:
+                # ✅ Always await send_message in case it's coroutine-based
                 result = client.send_message(to_number, message)
-
-                # ✅ Handle both coroutine and bool return types
                 if inspect.isawaitable(result):
                     success = await result
                 else:
                     success = result
 
+            clean_number = to_number.replace("@c.us", "")
+            if not clean_number.startswith("+"):
+                clean_number = "+" + clean_number
+
             if success:
                 try:
-                    clean_number = to_number.replace("@c.us", "")  # Remove @c.us
-                    if not clean_number.startswith("+"):
-                        clean_number = "+" + clean_number  # Add + if missing
-                    emails_collection = db["whatsappmessages"]  
-            
+                    # ✅ Save conversation history in MongoDB
+                    messages_col = db["whatsappmessages"]
                     new_message = {"assistant": message}
-
-                    # Vérifier si une conversation existe déjà
-                    existing_conversation = emails_collection.find_one({
+                    existing_conversation = messages_col.find_one({
                         "user_email": self.user_email,
                         "to_number": clean_number
                     })
 
                     if existing_conversation:
-                        # Mettre à jour la conversation existante
-                        emails_collection.update_one(
+                        messages_col.update_one(
                             {"_id": existing_conversation["_id"]},
                             {
                                 "$push": {"messages": new_message},
@@ -101,35 +105,23 @@ class WhatsAppTool(BaseTool):
                             }
                         )
                     else:
-                        # Créer une nouvelle conversation
-                        emails_collection.insert_one({
+                        messages_col.insert_one({
                             "user_email": self.user_email,
                             "to_number": clean_number,
                             "time": datetime.utcnow(),
                             "messages": [new_message]
                         })
-                    return {
-                        "status": "success",
-                        "to_number": clean_number,
-                        "message": f"✅ WhatsApp message successfully sent to {clean_number}.",
-                        "preview": message[:80]
-                    }
+
+                    print(f"[TOOL] ✅ WhatsApp message sent successfully to {clean_number}")
+                    return f"✅ WhatsApp message successfully sent to {clean_number}."
 
                 except Exception as e:
-                    return {
-                        "status": "success",
-                        "to_number": clean_number,
-                        "message": f"✅ Message sent to {clean_number}, but saving failed: {e}",
-                        "preview": message[:80]
-                    }
+                    print(f"[TOOL] ⚠️ Message sent but saving failed: {e}")
+                    return f"✅ Message sent to {clean_number}, but saving failed: {e}"
 
             else:
-                return {
-                    "status": "error",
-                    "to_number": clean_number,
-                    "message": f"❌ Failed to send WhatsApp message to {clean_number}.",
-                    "preview": message[:80]
-                }
+                print(f"[TOOL] ❌ WhatsApp send failed for {clean_number}")
+                return f"❌ Failed to send WhatsApp message to {clean_number}."
 
         except Exception as e:
-            return {"status": "error", "message": f"❌ WhatsApp error: {e}"}
+            return f"❌ WhatsApp error: {e}"

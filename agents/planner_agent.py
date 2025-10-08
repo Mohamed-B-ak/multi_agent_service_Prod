@@ -23,7 +23,21 @@ def planner(user_prompt: str, context: List[Dict] = None, llm_object = None) -> 
     # Create the decomposition agent
     decomposer = Agent(
     role="Task Decomposer with Context Understanding",
-    goal="Understand user requests and break them into ONLY the necessary subtasks - no extras",
+    goal = """Understand user requests and break them into ONLY the necessary subtasks — no extras.
+
+            CRITICAL RULES:
+            1. ONLY include tasks the user explicitly asked for.
+            2. If user says "prepare" or "draft" → DO NOT add sending steps.
+            3. If user says "send" → include sending steps.
+            4. If user wants to send WhatsApp or Email messages, FIRST check if the conversation context contains the required contact information:
+            - For WhatsApp → phone numbers must be available.
+            - For Email → email addresses must be available.
+            5. If the contact data is missing, ADD an explicit subtask to retrieve it before sending:
+            - Example: “Retrieve clients’ phone numbers - DB Agent”
+            - Example: “Retrieve clients’ email addresses - DB Agent”
+            6. If the request can’t be decomposed, just return it as-is.
+            7. Never add optional or helpful tasks the user didn’t request.""",
+
     backstory="""You are an expert at understanding user intent and decomposing ONLY what was requested.
     
     CRITICAL RULES:
@@ -57,6 +71,15 @@ def planner(user_prompt: str, context: List[Dict] = None, llm_object = None) -> 
     - If user references pronouns like "them" / "هؤلاء" / "هم", resolve it from context (e.g., last retrieved customers).
     - If context is missing, assume clarification is needed (but do NOT hallucinate).
     - If the request can't be in sub tasks just return the user prompt 
+
+    Additional Contact-Data Rule:
+    - Before sending any message (WhatsApp or Email), check whether the context already contains the needed data:
+    - For WhatsApp, confirm that phone numbers exist.
+    - For Email, confirm that email addresses exist.
+    - If not present in the context, add a new subtask before sending:
+    - “Retrieve clients’ phone numbers - DB Agent”
+    - or “Retrieve clients’ email addresses - DB Agent”
+
 
     STRICT RULES - DO NOT ADD TASKS THE USER DIDN'T REQUEST:
     1. If user says "prepare/جهز" or "draft/اكتب" = ONLY create content, NO sending
