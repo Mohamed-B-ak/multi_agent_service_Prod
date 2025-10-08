@@ -169,9 +169,10 @@ class PromptUnderstandingLayer:
                 11. **AGENT SELECTION** – If RESPONSE TYPE = agent, determine which Siyadah agents should be involved.
 
                 - Possible agents:
-                    - `marketing_agent` → Campaigns, content creation, promotions, announcements.
-                    - `sales_agent` → Lead nurturing, follow-ups, offers, deals, conversions.
-                    - `data_agent` → Client database operations, reports, or data lookups.
+                     - `content_agent` → كتابة المحتوى للحملات، الرسائل، واتساب، وإيميلات.
+                     - `whatsApp_sender` → إرسال رسائل واتساب.
+                     - `email_sender_agent` → إرسال الإيميلات.
+                     - `db_agent` → إضافة، حذف، تعديل واستعلامات قواعد البيانات.
 
                 - **Task Overlap Note:**
                     - `marketing_agent` and `sales_agent` can both prepare and send campaigns via WhatsApp or Email.
@@ -205,7 +206,7 @@ class PromptUnderstandingLayer:
                     "needs_clarification": true/false,
                     "clarification_question": "question to ask if needed",
                     "response_type": "agent/simple",
-                    "selected_agents": {["marketing_agent", "sales_agent", "data_agent"]},
+                    "selected_agents": {["content_agent", "whatsApp_sender", "db_agent"]},
                     "coordination_type": "sequential/parallel/independent",
                     "confidence": 0.0–1.0
                 }}

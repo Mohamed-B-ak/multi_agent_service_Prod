@@ -105,18 +105,18 @@ def get_workers(user_email, user_language, knowledge_base, selected_agents, cont
     llm_obj, _ = get_llm()
     selected_worker = []
     if isinstance(selected_agents, list) and len(selected_agents) > 0 : 
-        if "marketing_agent" in selected_agents : 
-            selected_worker.append(marketing_agent(llm_obj, user_email,  user_language))
-        if "sales_agent" in selected_agents: 
-            selected_worker.append(sales_agent(llm_obj, user_email, user_language))
-        if "data_agent" in  selected_agents : 
-            selected_worker.append(db_agent(llm_obj, user_email, user_language))
+        if "content_agent" in selected_agents:
+             selected_worker.append(knowledge_based_content_agent(llm_obj, user_email,  user_language))
+        if "email_sender_agent" in selected_agents:
+            selected_worker.append(email_agent(llm_obj, user_email,  user_language))
+        if "whatsApp_sender" in selected_agents:
+            selected_worker.append(whatsapp_agent(llm_obj, user_email,  user_language))
         
     else : 
         return [
-            marketing_agent(llm_obj, user_email,  user_language),
-            sales_agent(llm_obj, user_email, user_language),
-            db_agent(llm_obj, user_email, user_language)
+            knowledge_based_content_agent(llm_obj, user_email,  user_language),
+            email_agent(llm_obj, user_email, user_language),
+            whatsapp_agent(llm_obj, user_email, user_language)
         ]
     return selected_worker
 from crewai import Task
@@ -142,51 +142,28 @@ def get_understand_and_execute_task(
 
     # 🧩 Define agent-specific profiles
     agent_profiles = {
-        "marketing_agent": """
-        🎯 **MARKETING AGENT**
-        - Focus: audience-wide communication, campaigns, promotions, and general engagement.
-        - Channels: WhatsApp, Email, social media.
-        - Capabilities:
-            1. 📊 Campaign Management (multi-channel)
-            2. 🎨 Content Creation and Personalization
-            3. 📧 Email + WhatsApp Messaging
-            4. 🗂️ Customer Segmentation (via database queries)
-            5. 📈 Marketing Analytics (clicks, opens, engagement)
-            6. send email and whatsApp messages 
-        """,
+            "content_agent": """
+            ✍️ **CONTENT AGENT**
+            - Content writing for WhatsApp, Email, and marketing campaigns.
+            - Can personalize messages based on tone, urgency, and user input.
+            """,
+            "whatsApp_sender": """
+            📲 **WHATSAPP AGENT**
+            - Sends WhatsApp messages to clients using integrated API.
+            - Can attach rich content and use templates.
+            """,
+            "email_sender_agent": """
+            📧 **EMAIL AGENT**
+            - Sends email campaigns or individual emails.
+            - Uses templates and handles delivery formatting.
+            """,
+            "db_agent": """
+            📊 **DB AGENT**
+            - Reads/writes customer data, segments, filters, and stats.
+            - Supports CRUD and reporting operations.
+            """
+        }
 
-        "sales_agent": """
-        💼 **SALES AGENT**
-        - Focus: lead nurturing, follow-ups, deals, offers, and conversions.
-        - Channels: WhatsApp, Email, CRM.
-        - Capabilities:
-            1. 🤝 Lead Management and Follow-ups
-            2. 💬 Personalized WhatsApp/Email Outreach
-            3. 💰 Deal Tracking and Pipeline Updates
-            4. 📊 CRM Operations (retrieve/update lead data)
-            5. 🔍 Post-Campaign Follow-ups
-            6. send email and whatsApp messages 
-        """,
-
-        "data_agent": """
-        🗂️ **DATA AGENT**
-        - Focus: database operations, reports, and structured data queries.
-        - Capabilities:
-            1. 📦 CRUD operations (create, read, update, delete)
-            2. 📋 Data validation and consistency checks
-            3. 📈 Generate structured client reports
-            4. 🔍 Handle customer records and analytics datasets
-        """,
-
-        "system_agent": """
-        ⚙️ **SYSTEM AGENT**
-        - Focus: technical or configuration issues (e.g., login, API setup, environment errors).
-        - Capabilities:
-            1. 🛠️ Diagnose platform issues
-            2. 🧩 Adjust configuration or environment variables
-            3. 🧾 Provide setup or troubleshooting guidance
-        """,
-    }
 
     # 🧠 Normalize the selected agents list
     if not selected_agents:
@@ -197,7 +174,7 @@ def get_understand_and_execute_task(
 
     # 🧩 Merge all relevant agent profiles
     merged_agent_descriptions = "\n\n".join(
-        agent_profiles.get(agent, agent_profiles["marketing_agent"])
+        agent_profiles.get(agent)
         for agent in selected_agents
     )
 
@@ -266,18 +243,6 @@ def get_understand_and_execute_task(
         - System or agent commentary.  
         - Placeholders or unfinished content.  
 
-        ✅ Example outputs:
-        - Arabic: "تم تجهيز التقرير الشهري مع التحليل الكامل للأداء."  
-        ➡️ Next step: "هل ترغب في أن أرسل هذا التقرير عبر البريد الإلكتروني لفريقك؟"  
-
-        - English: "Customer segmentation data prepared with 120 active leads."  
-        ➡️ Next step: "Would you like me to create a follow-up campaign for these leads?"  
-
-        - Arabic (content): "مرحباً! يسعدنا إعلامك بأن عرضنا الجديد متاح الآن."  
-        ➡️ Next step: "هل ترغب أن أرسل هذا العرض الآن لقاعدة عملائك؟"  
-
-        - English (content): "Hi! Enjoy 30% off your first purchase this week."  
-        ➡️ Next step: "Should I schedule this message to go out via WhatsApp or Email?"  
     """
     )
     

@@ -13,43 +13,9 @@ class MailerSendTool(BaseTool):
 
     def _run(self, to_email: str, subject: str, message: str) -> str:
         print(self.user_email)
-
-        try: 
-            client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-            prompt = f"""
-            You are an assistant that formats emails professionally.
-            Task:
-            - Rewrite the subject line to be clear and professional.
-            - Rewrite the message as a professional HTML email with paragraphs, optional bullet points, and links if needed.
-            - Remove or replace any placeholders like {{name}} with neutral phrasing.
-
-            Subject: {subject}
-            Message: {message}
-            """
-
-            response = client.chat.completions.create(
-                model="gpt-4.1-mini",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.7
-            )
-
-            improved_text = response.choices[0].message.content
-
-            # ✅ Split subject & HTML message
-            if "Subject:" in improved_text and "HTML:" in improved_text:
-                parts = improved_text.split("HTML:")
-                new_subject = parts[0].replace("Subject:", "").strip()
-                new_html = parts[1].strip()
-            else:
-                # fallback: keep subject same, just format body
-                new_subject = subject
-                new_html = f"<p>{improved_text}</p>"
-        except: 
-            print("error")
-            new_subject = subject
-            new_html = message
-
+        print(to_email)
+        print(subject)
+        print(message)
         try:
             client = MongoClient(os.getenv("MONGO_DB_URI"))
             db = client[os.getenv("DB_NAME")]

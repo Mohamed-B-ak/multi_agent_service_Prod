@@ -74,9 +74,11 @@ def planner(user_prompt: str, context: List[Dict] = None, llm_object = None) -> 
     2. [Action] - [Which Agent should do it]
 
     Consider these available agents:
-    - Marketing Agent → prepares campaigns, segments audiences, outreach via WhatsApp/Email
-    - Sales Agent → CRM tasks, personalized sales campaigns, WhatsApp/Email follow-ups
-    - DB Agent → Answer questions related to database operations (CRUD)
+    - Content Agent → يصيغ الرسائل بناءً على الطلب (WhatsApp أو Email أو غيره)
+    - WhatsApp Sender Agent → مسؤول عن إرسال رسائل واتساب
+    - Email Sender Agent → مسؤول عن إرسال الإيميلات
+    - Database Agent → يتعامل مع عمليات CRUD على قاعدة البيانات
+
 
     IMPORTANT NOTES:
     - Always assign subtasks ONLY to these agents.
