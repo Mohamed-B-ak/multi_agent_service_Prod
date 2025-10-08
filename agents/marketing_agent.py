@@ -99,7 +99,6 @@ def marketing_agent(llm_obj, user_email, user_language) -> Agent:
         allow_delegation=False,
         llm=llm_obj,
         verbose=True,
-        result_parser=standard_result_parser,
     )
 
 def handle_output(result):
@@ -122,8 +121,7 @@ if __name__ == "__main__":
 
     # 🔹 Example: Run the agent with a marketing task
     result = agent.kickoff(
-        "Segment clients in Dubai from the database, prepare a WhatsApp and Email campaign "
-        "about our new product launch, and send a WhatsApp message to Mohamed."
+        "prapare awelcome email and send it to mohamed"
     )
 
     print("\n--- Agent Output ---")

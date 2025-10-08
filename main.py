@@ -152,6 +152,7 @@ def get_understand_and_execute_task(
             3. 📧 Email + WhatsApp Messaging
             4. 🗂️ Customer Segmentation (via database queries)
             5. 📈 Marketing Analytics (clicks, opens, engagement)
+            6. send email and whatsApp messages 
         """,
 
         "sales_agent": """
@@ -164,6 +165,7 @@ def get_understand_and_execute_task(
             3. 💰 Deal Tracking and Pipeline Updates
             4. 📊 CRM Operations (retrieve/update lead data)
             5. 🔍 Post-Campaign Follow-ups
+            6. send email and whatsApp messages 
         """,
 
         "data_agent": """
@@ -208,7 +210,7 @@ def get_understand_and_execute_task(
         You are now activating the following Siyadah AI agents together:  
         🧠 {active_agents_display}
 
-        The user has issued this request:
+        The user has issued this request or list of tasks (1., 2., ...):
         >>> {user_prompt}
 
         ---
@@ -481,16 +483,16 @@ async def process_prompt(request: UserPromptRequest):
     save_message(redis_client, user_email, "user", user_prompt)
 
     # Get chat history
-    #from understandinglayer.simple_messages import get_response
-    #try:
-        #response = get_response(user_prompt)
-        #if response:
-            #save_message(redis_client, user_email, "system", response)
-            #return JSONResponse(content={
-                #"final_output": response,
-            #})
-    #except:
-        #print("there is an error occured when we are trying to get reponse fromh e defined reponses ")
+    from understandinglayer.simple_messages import get_response
+    try:
+        response = get_response(user_prompt)
+        if response:
+            save_message(redis_client, user_email, "system", response)
+            return JSONResponse(content={
+                "final_output": response,
+            })
+    except:
+        print("there is an error occured when we are trying to get reponse fromh e defined reponses ")
     
     redis_context_window = get_messages(redis_client, user_email, limit=10)
 
@@ -506,6 +508,7 @@ async def process_prompt(request: UserPromptRequest):
         userlanguage = understanding_res.to_dict().get("language")
     except:
         userlanguage = "ar"
+
     try:
         dialect = understanding_res.to_dict().get("dialect")
     except:
