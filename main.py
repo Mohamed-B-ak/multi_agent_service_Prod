@@ -327,31 +327,26 @@ def get_understand_and_execute_task(
         ALWAYS show proof of execution!
         """,
 
-        expected_output=f"""
-        Return ONLY the final verified result in {user_language} ({dialect} dialect if applicable).
+        expected_output = f"""
+        Return ONLY the final result in {user_language} ({dialect} dialect if applicable).  
+        If a misunderstanding occurred previously, begin with a short apology, then provide the correct result.
+        After the result, always suggest a next step in the form of a question, based on:
 
-        ---
-        ✅ **REQUIRED OUTPUT STRUCTURE**
-        
-        Your response MUST contain:
-        
-        1️⃣ **Execution Summary** (brief)
-           - What was requested
-           - What was actually done (with tool names)
-           
-        2️⃣ **Concrete Evidence** (MANDATORY)
-           - For database: Show actual data retrieved
-           - For sending: Show recipient phone/email + send confirmation
-           - For content: Show the actual content created
-           
-        3️⃣ **Status Indicator** (clear)
-           - ✅ Success with specific details
-           - ❌ Failure with clear reason
-           - ⚠️ Partial completion with explanation
-           
-        4️⃣ **Next Step Question** (contextual)
-           - Relevant follow-up based on what was done
-           - Should guide the user naturally
+            the user’s input,
+
+            the result produced,
+
+            and the current conversation context.
+            
+        The result should be:
+        - The actual output requested by the user (e.g., content, data, message, summary, etc.).  
+        - Clean, ready to use, and formatted appropriately for the task.  
+
+        DO NOT include:
+        - Explanations or reasoning steps.  
+        - Phrases like “Here is the result” or “I have completed your request.”  
+        - System or agent commentary.  
+        - Placeholders or unfinished content.  
         """
     )
   

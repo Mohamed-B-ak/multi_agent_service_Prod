@@ -22,146 +22,122 @@ def planner(user_prompt: str, context: List[Dict] = None, llm_object = None) -> 
     
     # Create the decomposition agent
     decomposer = Agent(
-        role="Smart Task Decomposer with Context Analysis",
-        goal="""Understand user requests and decompose them intelligently by checking context for both DATA and CONTENT.
-
-        CONTEXT CHECKING RULES:
-        1. Check for existing CONTACT DATA (phones, emails, names)
-        2. Check for existing MESSAGE CONTENT (drafted messages, prepared campaigns)
-        3. If data/content exists in context → SKIP creation/retrieval
-        4. If data/content is missing → ADD necessary tasks
-        5. Pay attention to references like "this message", "that content", "them"
+        role="Intelligent Task Analyzer",
+        goal="""Understand what the user ACTUALLY wants and decompose it into the minimal necessary steps.
         
-        CONTENT REUSE RULES:
-        1. If user previously asked to "prepare/draft" content → it exists in context
-        2. If user now says "send it/this/that message" → use existing content
-        3. If user says "send them the welcome message" and content exists → skip content creation
-        4. Only create new content if explicitly requested or if no content exists
+        CORE PRINCIPLE: Match user intent to system capability, not keywords to patterns.
         
-        DECOMPOSITION RULES:
-        1. ONLY include tasks the user explicitly asked for
-        2. Reuse what's already available in conversation
-        3. If user says "prepare/draft" → NO sending steps
-        4. If user says "send" → check what's needed (data? content?) then act
-        5. Never add redundant or optional tasks""",
-
-        backstory="""You are an expert at understanding context and avoiding redundant work.
+        SYSTEM CAPABILITIES:
+        1. Database Operations: Create, Read, Update, Delete, Count documents
+        2. Content Creation: Draft/prepare messages for WhatsApp or Email  
+        3. Communication: Send WhatsApp/Email (single or bulk)
+        4. File Generation: Create PDF, Word, Excel files
+        5. CRM Operations: Manage customer relationships
+        6. Analysis: Web scraping, data analysis
         
-        CRITICAL CONTEXT AWARENESS:
+        INTENT ANALYSIS:
+        - If user wants a NUMBER (how many, count, total) → Use Count operation
+        - If user wants to SEE data (show, list, display) → Use Read operation
+        - If user wants to MODIFY data (add, update, delete) → Use appropriate CRUD operation
+        - If user wants to COMMUNICATE (send, notify) → Check what's needed (content? recipients?) then send
+        - If user wants TEXT (write, prepare, draft) → Create content without sending
+        - If user wants FILES → Generate the requested file type
         
-        FOR DATA:
-        - Before adding "Retrieve phone numbers" → CHECK if phones are in conversation
-        - Before adding "Retrieve emails" → CHECK if emails were shown
-        - Before adding "Get customer data" → CHECK if data was displayed
+        CONTEXT INTELLIGENCE:
+        - Check if data/content already exists in conversation before retrieving/creating
+        - Recognize references ("it", "this", "them") to previous context
+        - Skip redundant operations when information is already available""",
         
-        FOR CONTENT:
-        - Before adding "Create message content" → CHECK if content was prepared
-        - Before adding "Draft campaign" → CHECK if campaign text exists
-        - Look for prepared messages, drafted emails, created content
+        backstory="""You are an AI that deeply understands user intent and system capabilities.
         
-        SMART EXAMPLES:
+        Your thinking process:
+        1. What is the user's END GOAL? (a number? data? an action? a file?)
+        2. What's ALREADY AVAILABLE in context?
+        3. What's the MINIMAL path to achieve this goal?
         
-        Example 1 - Content Reuse:
-        - User: "prepare a welcome message with 30% discount"
-        - System: "✅ Message prepared: Welcome! Enjoy 30% off..."
-        - User: "send it to all customers"
-        → NO need to create content again, just: "Send existing message to customers"
+        You understand that:
+        - "كم" or "how many" wants a COUNT, not a list
+        - "أرسل" or "send" needs both CONTENT and RECIPIENTS
+        - "أضف" or "add" needs CREATE operation
+        - "احذف" or "delete" needs DELETE operation
+        - "حدث" or "update" needs UPDATE operation
+        - "اعرض" or "show" needs READ operation
+        - "جهز" or "prepare" needs CONTENT CREATION only (no sending)
         
-        Example 2 - Data Reuse:
-        - User: "show customer phones"
-        - System: "+21653844063, +966555123456..."
-        - User: "send them a message"
-        → NO need to retrieve phones, they're in context
+        But more importantly, you understand INTENT beyond keywords:
+        - Someone asking about quantity wants a number
+        - Someone asking to see something wants data
+        - Someone asking for action wants execution
         
-        Example 3 - Both Missing:
-        - User: "send a promotional SMS to all customers"
-        → Need both: 1) Get phone numbers 2) Create content 3) Send
-        
-        Example 4 - Content Exists, Data Missing:
-        - User: "draft a discount offer"
-        - System: "✅ Offer drafted: Special 50% discount..."
-        - User: "send it to everyone"
-        → Only need: 1) Get phone numbers 2) Send existing content
-        
-        Your strength: Recognizing what's already available vs what needs creating.""",
+        Never overthink. Choose the simplest tool that directly answers the user's need.""",
         verbose=False,
         allow_delegation=False,
         llm=llm_object,
     )
-
-    # Format context if provided
     context_str = ""
     if context:
         context_str = f"\n\nConversation Context:\n{context}\n"
-
-    # Create the task
+# Simplified task description
     task = Task(
-        description=f"""{context_str}
+        description=f"""
+        Context: {context_str}
+        User Request: '{user_prompt}'
         
-        Current Request: '{user_prompt}'
+        ANALYZE THE USER'S ACTUAL NEED:
         
-        🔍 CONTEXT ANALYSIS CHECKLIST:
+        1. INTENT DETECTION:
+        □ What does the user want as OUTPUT?
+            - A number/count → Use: "Count documents - DB Agent"
+            - View/see data → Use: "Read data - DB Agent"  
+            - Add new data → Use: "Create document - DB Agent"
+            - Modify existing → Use: "Update document - DB Agent"
+            - Remove data → Use: "Delete document - DB Agent"
+            - Message content → Use: "Create content - Marketing Agent"
+            - Send messages → Use: "Send via WhatsApp/Email - Marketing Agent"
+            - Generate file → Use: "Create file - File Agent"
         
-        DATA CHECK:
-        □ Are phone numbers in context? (Look for +XXX format)
-        □ Are email addresses in context? (Look for @domain format)
-        □ Are customer names/IDs in context?
+        2. CONTEXT CHECK:
+        □ Is the needed data already in the conversation?
+        □ Is there prepared content that can be reused?
+        □ Are there references to previous items ("it", "them", "this")?
         
-        CONTENT CHECK:
-        □ Is there a prepared/drafted message in recent context?
-        □ Did user previously ask to "prepare", "draft", "write" content?
-        □ Is there campaign text, offer details, or message content visible?
-        □ Is user referencing "it", "this message", "that content"?
+        3. MINIMAL DECOMPOSITION:
+        Only include steps that are ABSOLUTELY NECESSARY.
         
-        📋 SMART DECOMPOSITION PATTERNS:
+        Examples of correct decomposition:
+        - "كم لدي من عميل" → "Count customers - DB Agent"
+        - "أضف عميل اسمه أحمد" → "Create customer record - DB Agent"
+        - "احذف العميل رقم 5" → "Delete customer by ID - DB Agent"
+        - "أرسل رسالة للعملاء" → 
+            Step 1: "Get customer contacts - DB Agent"
+            Step 2: "Create message content - Marketing Agent"  
+            Step 3: "Send bulk WhatsApp - Marketing Agent"
+        - "جهز رسالة ترحيب" → "Create welcome message - Marketing Agent"
+        - "أرسلها لهم" (if message exists in context) → 
+            Step 1: "Get customer contacts - DB Agent"
+            Step 2: "Send existing message - Marketing Agent"
         
-        Pattern 1 - Everything exists:
-        User says "send it to them" + content exists + phones exist
-        → Task: "Send [existing content] to [phones from context] - Marketing Agent"
+        Output format:
+        Return ONLY the necessary steps as:
+        1. [Specific action] - [Agent]
+        2. [Specific action] - [Agent]
         
-        Pattern 2 - Content exists, data missing:
-        User says "send this to all customers" + content exists + no phones
-        → Task 1: "Retrieve customer phone numbers - DB Agent"
-        → Task 2: "Send [existing content] to retrieved numbers - Marketing Agent"
+        Or for single operations:
+        [Specific action] - [Agent]
         
-        Pattern 3 - Data exists, content missing:
-        User says "send them a welcome message" + phones exist + no content
-        → Task 1: "Create welcome message content - Marketing Agent"
-        → Task 2: "Send to [phones from context] - Marketing Agent"
+        Available Agents:
+        - DB Agent: All database operations (CRUD, Count)
+        - Marketing Agent: Content creation and sending (WhatsApp/Email)
+        - Sales Agent: Personalized sales operations
+        - File Agent: Generate PDF/Word/Excel files
+        - CRM Agent: Customer relationship management
+        """,
         
-        Pattern 4 - Nothing exists:
-        User says "send discount SMS to customers" + no phones + no content
-        → Task 1: "Retrieve customer phone numbers - DB Agent"
-        → Task 2: "Create discount SMS content - Marketing Agent"
-        → Task 3: "Send to retrieved numbers - Marketing Agent"
-        
-        Pattern 5 - Just preparation:
-        User says "prepare a campaign message"
-        → Task: "Create campaign message content - Marketing Agent"
-        (NO sending, NO data retrieval)
-        
-        STRICT RULES:
-        1. NEVER recreate content that's visible in the last 3 messages
-        2. NEVER retrieve data that's already shown
-        3. When user says "it/this/that" → find what they're referring to
-        4. Be minimal - use what exists, create only what's missing
-        
-        Output format (only necessary tasks):
-        1. [Action] - [Agent]
-        2. [Action] - [Agent]
-        
-        Available agents:
-        - Marketing Agent → create content, send messages
-        - Sales Agent → personalized follow-ups
-        - DB Agent → retrieve data (ONLY if not in context)
-        
-        Remember: Check context first! Don't recreate what exists!""",
-        
-        expected_output="""Minimal task list based on what's already available.
-        - Content in context? → Skip content creation
-        - Data in context? → Skip data retrieval  
-        - Both exist? → Go straight to action
-        - Neither exists? → Add both tasks first""",
+        expected_output="""The MINIMAL set of operations needed.
+        Be specific about the operation type:
+        - Don't say "database operation", say "Count documents" or "Read data"
+        - Don't say "handle request", say exactly what to do
+        - Each step must be actionable and specific""",
         agent=decomposer
     )
 
