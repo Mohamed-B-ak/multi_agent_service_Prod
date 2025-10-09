@@ -64,7 +64,6 @@ class MessageContentTool(BaseTool):
                 f"📝 **Prepared {channel.upper()} Content Preview**\n\n"
                 f"**Subject:** {new_subject}\n\n"
                 f"{new_body}\n\n"
-                "⚠️ This content is only prepared — it has NOT been sent."
             )
             return {
             "subject": new_subject,

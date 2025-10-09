@@ -6,7 +6,8 @@ import os
 import uuid
 from datetime import datetime
 from pydantic import BaseModel
-from typing import Optional, Dict
+from typing import Optional, Dict, List
+from bson import ObjectId
 # Base connection class (not inheriting from BaseTool)
 class MongoDBConnection:
     def __init__(self, connection_string: str, db_name: str):
@@ -203,7 +204,7 @@ class MongoDBReadDataToolSchema(BaseModel):
 
 class MongoDBReadDataTool(BaseTool):
     name: str = "MongoDB Read Data Tool"
-    description: str = "Reads data from a specified collection."
+    description: str = "Reads data from a specified MongoDB collection."
     args_schema = MongoDBReadDataToolSchema
     db: Any = None
 
@@ -211,22 +212,36 @@ class MongoDBReadDataTool(BaseTool):
         super().__init__(**kwargs)
         self.db = connection.get_db()
 
-    def _run(self, collection_name: str, filter_query: Optional[dict] = None, limit: Optional[int] = 100) -> str:
+    def _run(
+        self,
+        collection_name: str,
+        filter_query: Optional[dict] = None,
+        limit: int = 100,
+        skip: int = 0
+    ) -> dict:
+        """Read documents from a MongoDB collection with optional filters and pagination."""
         try:
             collection = self.db[collection_name]
-            cursor = collection.find(filter_query or {}).limit(limit)
+            cursor = collection.find(filter_query or {}).skip(skip).limit(limit)
             data = list(cursor)
+
+            # Convert ObjectIds to strings for safe serialization
+            for doc in data:
+                if "_id" in doc and isinstance(doc["_id"], ObjectId):
+                    doc["_id"] = str(doc["_id"])
 
             if data:
                 return {
+                    "success": True,
                     "status": "success",
                     "message": f"✅ Retrieved {len(data)} records from '{collection_name}'.",
                     "collection": collection_name,
                     "count": len(data),
-                    "data": data[:limit]
+                    "data": data
                 }
             else:
                 return {
+                    "success": True,
                     "status": "empty",
                     "message": f"ℹ️ No documents found in '{collection_name}' for filter {filter_query or {}}.",
                     "collection": collection_name,
@@ -236,8 +251,71 @@ class MongoDBReadDataTool(BaseTool):
 
         except Exception as e:
             return {
+                "success": False,
                 "status": "error",
                 "message": f"❌ Error reading data from '{collection_name}': {e}"
+            }
+
+    class Config:
+        arbitrary_types_allowed = True
+
+class MongoDBBulkDeleteTool(BaseTool):
+    name: str = "MongoDB Bulk Delete Tool"
+    description: str = "Deletes multiple documents from a specified MongoDB collection based on a filter query."
+    db: Any = None
+
+    def __init__(self, connection: MongoDBConnection, **kwargs):
+        super().__init__(**kwargs)
+        self.db = connection.get_db()
+
+    def _run(self, collection_name: str, filter_query: Optional[dict] = None, confirm: bool = False) -> dict:
+        """
+        Deletes multiple documents from a MongoDB collection.
+        If `filter_query` is empty, requires `confirm=True` to avoid deleting the entire collection.
+        """
+        try:
+            collection = self.db[collection_name]
+            filter_query = filter_query or {}
+
+            # Safety check to prevent accidental full collection wipe
+            if not filter_query and not confirm:
+                return {
+                    "status": "blocked",
+                    "message": (
+                        "⚠️ No filter provided. Use 'confirm=True' if you really want to delete ALL documents."
+                    ),
+                    "collection": collection_name,
+                    "deleted_count": 0,
+                    "filter": {}
+                }
+
+            # Perform bulk deletion
+            result = collection.delete_many(filter_query)
+
+            if result.deleted_count > 0:
+                return {
+                    "status": "success",
+                    "message": f"✅ Deleted {result.deleted_count} documents from '{collection_name}'.",
+                    "collection": collection_name,
+                    "deleted_count": result.deleted_count,
+                    "filter": filter_query
+                }
+            else:
+                return {
+                    "status": "empty",
+                    "message": f"ℹ️ No documents matched the filter {filter_query} in '{collection_name}'.",
+                    "collection": collection_name,
+                    "deleted_count": 0,
+                    "filter": filter_query
+                }
+
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": f"❌ Error deleting documents from '{collection_name}': {e}",
+                "collection": collection_name,
+                "deleted_count": 0,
+                "filter": filter_query or {}
             }
 
     class Config:
@@ -269,7 +347,7 @@ class MongoDBCountDocumentsTool(BaseTool):
             return user_filter
 
         # If query already contains a user email condition → ignore it, use $or instead
-        if any(k in query for k in ["createdBy", "createdByEmail", "userEmail"]):
+        if any(k in query for k in ["userEmail"]):
             return user_filter
 
         # Otherwise, combine user filter with the provided query
@@ -284,6 +362,82 @@ class MongoDBCountDocumentsTool(BaseTool):
         "count": count,
         "message": f"✅ Current number of clients: {count}"
     }
+
+    class Config:
+        arbitrary_types_allowed = True
+
+class MongoDBBulkCreateTool(BaseTool):
+    name: str = "MongoDB Bulk Create Tool"
+    description: str = (
+        "Inserts multiple documents into a specified MongoDB collection. "
+        "Automatically assigns unique IDs (`id`) and adds audit fields "
+        "(`created_at`, `createdBy`, `createdByEmail`, `userEmail`)."
+    )
+    db: Any = None
+
+    def __init__(self, connection: MongoDBConnection, **kwargs):
+        super().__init__(**kwargs)
+        self.db = connection.get_db()
+
+    def _run(self, collection_name: str, documents: List[dict]) -> dict:
+        """
+        Creates multiple documents in a MongoDB collection.
+        Adds default audit fields and generates unique IDs where missing.
+        """
+        try:
+            if not documents or not isinstance(documents, list):
+                return {
+                    "status": "error",
+                    "message": "❌ Input must be a non-empty list of documents.",
+                    "collection": collection_name,
+                    "inserted_count": 0,
+                    "inserted_ids": []
+                }
+
+            prepared_docs = []
+            for doc in documents:
+                doc_copy = doc.copy()
+
+                # Auto-generate custom UUID if missing
+                if not doc_copy.get("id"):
+                    doc_copy["id"] = str(uuid.uuid4())
+
+                # Add creation timestamp
+                doc_copy.setdefault("created_at", datetime.utcnow())
+
+                # Optional audit fields (kept flexible)
+                doc_copy.setdefault("createdBy", "system")
+                doc_copy.setdefault("createdByEmail", "system@auto")
+                doc_copy.setdefault("userEmail", "system@auto")
+
+                prepared_docs.append(doc_copy)
+
+            collection = self.db[collection_name]
+            result = collection.insert_many(prepared_docs)
+
+            return {
+                "status": "success",
+                "message": f"✅ Successfully inserted {len(result.inserted_ids)} documents into '{collection_name}'.",
+                "collection": collection_name,
+                "inserted_count": len(result.inserted_ids),
+                "inserted_ids": [str(_id) for _id in result.inserted_ids],
+                "custom_ids": [doc["id"] for doc in prepared_docs]
+            }
+
+        except Exception as e:
+            if "E11000" in str(e) and "duplicate key" in str(e):
+                return {
+                    "status": "error",
+                    "message": f"❌ Duplicate key error while inserting documents: {e}",
+                    "collection": collection_name,
+                    "inserted_count": 0
+                }
+            return {
+                "status": "error",
+                "message": f"❌ Error creating documents in '{collection_name}': {e}",
+                "collection": collection_name,
+                "inserted_count": 0
+            }
 
     class Config:
         arbitrary_types_allowed = True

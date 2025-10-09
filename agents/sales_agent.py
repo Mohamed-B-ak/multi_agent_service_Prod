@@ -15,11 +15,11 @@ from Tools.db_tools import (
     MongoDBUpdateDocumentTool,
     MongoDBDeleteDocumentTool,
     MongoDBReadDataTool,
-    MongoDBCountDocumentsTool
+    MongoDBCountDocumentsTool, MongoDBBulkDeleteTool, MongoDBBulkCreateTool
 )
 
 # Communication tools
-from Tools.whatsApp_tools import WhatsAppTool
+from Tools.whatsApp_tools import WhatsAppTool, WhatsAppBulkSenderTool
 from Tools.email_tools import MailerSendTool
 from Tools.MessageContentTool import MessageContentTool
 
@@ -43,11 +43,14 @@ def sales_agent(llm_obj, user_email, user_language="en") -> Agent:
     # All tools available
     list_collections_tool = MongoDBListCollectionsTool(connection)
     create_document_tool = MongoDBCreateDocumentTool(connection)
+    create_bulk_document_tool = MongoDBBulkCreateTool(connection)
     update_document_tool = MongoDBUpdateDocumentTool(connection)
     delete_document_tool = MongoDBDeleteDocumentTool(connection)
     read_data_tool = MongoDBReadDataTool(connection)
+    delete_bulk_document_tool = MongoDBBulkDeleteTool(connection)
     count_documents_tool = MongoDBCountDocumentsTool(connection, user_email)
     whatsapp_tool = WhatsAppTool(user_email=user_email)
+    whatsapp_bulk_tool = WhatsAppBulkSenderTool(user_email=user_email)
     email_tool = MailerSendTool(user_email=user_email)
     content_tool = MessageContentTool(user_email=user_email)
     
@@ -120,8 +123,11 @@ def sales_agent(llm_obj, user_email, user_language="en") -> Agent:
             delete_document_tool,
             count_documents_tool,
             whatsapp_tool,
+            whatsapp_bulk_tool,
             email_tool,
-            content_tool
+            content_tool,
+            delete_bulk_document_tool,
+            create_bulk_document_tool
         ],
         allow_delegation=False,
         llm=llm_obj,

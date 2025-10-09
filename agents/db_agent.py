@@ -7,7 +7,9 @@ from Tools.db_tools import (
     MongoDBUpdateDocumentTool,
     MongoDBDeleteDocumentTool,
     MongoDBReadDataTool,
-    MongoDBCountDocumentsTool
+    MongoDBCountDocumentsTool,
+    MongoDBBulkDeleteTool,
+    MongoDBBulkCreateTool,
 )
 
 def db_agent(llm_obj, user_email, user_language="en") -> Agent:
@@ -34,10 +36,13 @@ def db_agent(llm_obj, user_email, user_language="en") -> Agent:
     # Tools
     list_collections_tool = MongoDBListCollectionsTool(connection)
     create_document_tool = MongoDBCreateDocumentTool(connection)
+    create_bulk_document_tool = MongoDBBulkCreateTool(connection)
     update_document_tool = MongoDBUpdateDocumentTool(connection)
     delete_document_tool = MongoDBDeleteDocumentTool(connection)
+    delete_bulk_document_tool = MongoDBBulkDeleteTool(connection)
     read_data_tool = MongoDBReadDataTool(connection)
     count_documents_tool = MongoDBCountDocumentsTool(connection, user_email)
+
 
     # 🔹 Get available collections and fields
     collections_info = list_collections_tool._run()
@@ -80,6 +85,8 @@ def db_agent(llm_obj, user_email, user_language="en") -> Agent:
             delete_document_tool,
             read_data_tool,
             count_documents_tool,
+            delete_bulk_document_tool,
+            create_bulk_document_tool,
         ],
         allow_delegation=False,
         llm=llm_obj,
