@@ -82,10 +82,14 @@ def sales_agent(llm_obj, user_email, user_language="en") -> Agent:
         - Write or send any messages (including welcome or sales messages) unless explicitly requested.
         - Suggest actions, improvements, or next steps.
         - Assume intent or take initiative beyond the given instruction.
-
-        Database: {collections_info}
-        User scope: {user_email}
         Language: {user_language}
+        f"Always restrict queries to the user's email: {user_email}, by filtering against  of the field: "
+        "`userEmail`. "
+        f"\n\nAvailable collections and fields: {collections_info}."
+        "\nPick the most relevant collection for the user’s request. "
+        "Do NOT invent collection names — always choose from the above."
+        f"All answers must be strictly in {user_language}, concise, accurate, "
+        "the key source should be internal "
         """
 
         # Strict backstory

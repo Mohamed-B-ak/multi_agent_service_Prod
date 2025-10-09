@@ -239,16 +239,10 @@ def get_understand_and_execute_task(
         3️⃣ **Tool Usage Rules**
            - Database operations → Use MongoDB Read/Write/Update/Delete tools
            - Content creation → Use MessageContentTool
-           - WhatsApp sending → Use WhatsApp Tool / whatsApp bulk tool (must show in logs)
-           - Email sending → Use MailerSend Tool / MailerSend bulk Tool (must show in logs)
+           - WhatsApp sending → Use WhatsApp Tool / whatsApp bulk tool
+           - Email sending → Use MailerSend Tool / MailerSend bulk Tool
         
-        4️⃣ **Step Verification** (MANDATORY)
-           After EACH step, verify:
-           ✅ Tool was actually called (check your tool usage logs)
-           ✅ Tool returned success status
-           ✅ Output contains concrete data (phone number, message ID, etc.)
-           
-        5️⃣ **Multi-Step Task Example**:
+        4️⃣ **Multi-Step Task Example**:
            User: "Send a discount offer to Mohamed"
            
            ✅ CORRECT Execution:
@@ -275,12 +269,9 @@ def get_understand_and_execute_task(
         6. Saying "success" when a tool failed or wasn't called
         
         ✅ **REQUIRED ACTIONS**:
-        1. Show tool name for EVERY action taken
-        2. Display tool output/result for verification
-        3. Confirm each step completed successfully before proceeding
-        4. If ANY step fails → stop and report the failure clearly
-        5. For send operations → MUST use actual send tool (WhatsApp/Email)
-        6. For database operations → MUST use actual MongoDB tool
+        1. If ANY step fails → stop and report the failure clearly
+        2. For send operations → MUST use actual send tool (WhatsApp/Email)
+        3. For database operations → MUST use actual MongoDB tool
         
         ---
         📋 **Step-by-Step Execution Checklist**
@@ -291,7 +282,6 @@ def get_understand_and_execute_task(
         □ Verified EACH tool returned success
         □ Collected concrete evidence (IDs, numbers, confirmations)
         □ NOT skipped any steps
-        □ NOT assumed anything without verification
         
         ---
         🎭 **Response Guidelines**
@@ -558,7 +548,7 @@ async def process_prompt(request: UserPromptRequest):
         if response:
             save_message(redis_client, user_email, "system", response)
             return JSONResponse(content={
-                "final_output": response,
+                "final_output": response + str(time.time() - start),
             })
     except:
         print("there is an error occured when we are trying to get reponse fromh e defined reponses ")
@@ -606,14 +596,14 @@ async def process_prompt(request: UserPromptRequest):
     from utils import respond_to_user, check_required_data
     if understanding_res.response_type == "simple":
         return JSONResponse(content={
-            "final_output": respond_to_user(user_prompt, user_email, userlanguage, dialect, tone, urgency),
+            "final_output": respond_to_user(user_prompt, user_email, userlanguage, dialect, tone, urgency) + str(time.time() - start),
         })
 
     confirmation = check_required_data(meaning, redis_context_window)
     if isinstance(confirmation, dict):
         if confirmation["need_details"] == "yes":
             return JSONResponse(content={
-                "final_output": confirmation['message'],
+                "final_output": confirmation['message'] + str(time.time() - start),
             })  
 
     print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++")
@@ -716,7 +706,7 @@ async def process_prompt(request: UserPromptRequest):
 
         # 🆕 أضف الإحصائيات في الرد
         return JSONResponse(content={
-            "final_output": final_output,
+            "final_output": final_output + str(time.time() - start),
             "execution_time": crew_execution_time,
             "file_name": file_name,
             "file_content": file_data,

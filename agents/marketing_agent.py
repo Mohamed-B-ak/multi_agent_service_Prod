@@ -76,17 +76,22 @@ def marketing_agent(llm_obj, user_email, user_language) -> Agent:
         f"Step 5: ONLY THEN say 'تم الإرسال'\n\n"
         
         f"❌ **FORBIDDEN**:\n"
-        f"- Saying 'تم الإرسال' without calling WhatsAppTool/WhatsAppBulkSenderTool\n"
+        f"- Saying 'تم الإرسال' without calling Tools\n"
         f"- Using MongoDB read results as proof of sending\n"
-        f"- Assuming success without tool confirmation\n\n"
         
         f"📊 **Success Criteria for Bulk Sending**:\n"
         f"✅ Tool call logged in execution trace\n"
         f"✅ Tool returned status='complete'\n"
         f"✅ successes count > 0\n"
-        f"✅ Each success has {{\"to\": phone, \"success\": true}}\n\n"
-        
-        f"Always respond in {user_language}. Database: {collections_info}. User: {user_email}"
+
+        f"Always respond in {user_language}"
+        f"Always restrict queries to the user's email: {user_email}, by filtering against  of the field: "
+        "`userEmail`. "
+        f"\n\nAvailable collections and fields: {collections_info}."
+        "\nPick the most relevant collection for the user’s request. "
+        "Do NOT invent collection names — always choose from the above."
+        f"All answers must be strictly in {user_language}, concise, accurate, "
+        "the key source should be internal "
     )
 
 
