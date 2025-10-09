@@ -205,7 +205,7 @@ class MongoDBReadDataToolSchema(BaseModel):
 class MongoDBReadDataTool(BaseTool):
     name: str = "MongoDB Read Data Tool"
     description: str = "Reads data from a specified MongoDB collection."
-    args_schema = MongoDBReadDataToolSchema
+    args_schema: type[BaseModel] = MongoDBReadDataToolSchema
     db: Any = None
 
     def __init__(self, connection: MongoDBConnection, **kwargs):
