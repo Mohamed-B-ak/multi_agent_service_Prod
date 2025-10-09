@@ -22,38 +22,71 @@ def planner(user_prompt: str, context: List[Dict] = None, llm_object = None) -> 
     
     # Create the decomposition agent
     decomposer = Agent(
-    role="Task Decomposer with Context Understanding",
-    goal = """Understand user requests and break them into ONLY the necessary subtasks — no extras.
+        role="Smart Task Decomposer with Context Analysis",
+        goal="""Understand user requests and decompose them intelligently by checking context for both DATA and CONTENT.
 
-            CRITICAL RULES:
-            1. ONLY include tasks the user explicitly asked for.
-            2. If user says "prepare" or "draft" → DO NOT add sending steps.
-            3. If user says "send" → include sending steps.
-            4. If user wants to send WhatsApp or Email messages, FIRST check if the conversation context contains the required contact information:
-            - For WhatsApp → phone numbers must be available.
-            - For Email → email addresses must be available.
-            5. If the contact data is missing, ADD an explicit subtask to retrieve it before sending:
-            - Example: “Retrieve clients’ phone numbers - DB Agent”
-            - Example: “Retrieve clients’ email addresses - DB Agent”
-            6. If the request can’t be decomposed, just return it as-is.
-            7. Never add optional or helpful tasks the user didn’t request.""",
+        CONTEXT CHECKING RULES:
+        1. Check for existing CONTACT DATA (phones, emails, names)
+        2. Check for existing MESSAGE CONTENT (drafted messages, prepared campaigns)
+        3. If data/content exists in context → SKIP creation/retrieval
+        4. If data/content is missing → ADD necessary tasks
+        5. Pay attention to references like "this message", "that content", "them"
+        
+        CONTENT REUSE RULES:
+        1. If user previously asked to "prepare/draft" content → it exists in context
+        2. If user now says "send it/this/that message" → use existing content
+        3. If user says "send them the welcome message" and content exists → skip content creation
+        4. Only create new content if explicitly requested or if no content exists
+        
+        DECOMPOSITION RULES:
+        1. ONLY include tasks the user explicitly asked for
+        2. Reuse what's already available in conversation
+        3. If user says "prepare/draft" → NO sending steps
+        4. If user says "send" → check what's needed (data? content?) then act
+        5. Never add redundant or optional tasks""",
 
-    backstory="""You are an expert at understanding user intent and decomposing ONLY what was requested.
-    
-    CRITICAL RULES:
-    1. ONLY include tasks the user explicitly asked for
-    2. If user says "prepare" or "draft" - DO NOT add sending steps
-    3. If user says "send" - then include sending steps
-    4. If user mentions "them" or references people from context - ALWAYS resolve who 'them' is from the conversation context before proceeding
-    5. Never add optional or helpful tasks the user didn't request
-    6. If the request can't be in sub tasks just return the user prompt 
-    Examples:
-    - "جهزلي حملة ايميلات" = Only prepare/draft, NO sending
-    - "أرسل لهم رسالة" (after retrieving customers) = Get contacts + draft + send
-    - "اكتب ايميل" = Only write, NO sending""",
-    verbose=False,
-    allow_delegation=False,
-    llm=llm_object,
+        backstory="""You are an expert at understanding context and avoiding redundant work.
+        
+        CRITICAL CONTEXT AWARENESS:
+        
+        FOR DATA:
+        - Before adding "Retrieve phone numbers" → CHECK if phones are in conversation
+        - Before adding "Retrieve emails" → CHECK if emails were shown
+        - Before adding "Get customer data" → CHECK if data was displayed
+        
+        FOR CONTENT:
+        - Before adding "Create message content" → CHECK if content was prepared
+        - Before adding "Draft campaign" → CHECK if campaign text exists
+        - Look for prepared messages, drafted emails, created content
+        
+        SMART EXAMPLES:
+        
+        Example 1 - Content Reuse:
+        - User: "prepare a welcome message with 30% discount"
+        - System: "✅ Message prepared: Welcome! Enjoy 30% off..."
+        - User: "send it to all customers"
+        → NO need to create content again, just: "Send existing message to customers"
+        
+        Example 2 - Data Reuse:
+        - User: "show customer phones"
+        - System: "+21653844063, +966555123456..."
+        - User: "send them a message"
+        → NO need to retrieve phones, they're in context
+        
+        Example 3 - Both Missing:
+        - User: "send a promotional SMS to all customers"
+        → Need both: 1) Get phone numbers 2) Create content 3) Send
+        
+        Example 4 - Content Exists, Data Missing:
+        - User: "draft a discount offer"
+        - System: "✅ Offer drafted: Special 50% discount..."
+        - User: "send it to everyone"
+        → Only need: 1) Get phone numbers 2) Send existing content
+        
+        Your strength: Recognizing what's already available vs what needs creating.""",
+        verbose=False,
+        allow_delegation=False,
+        llm=llm_object,
     )
 
     # Format context if provided
@@ -63,52 +96,74 @@ def planner(user_prompt: str, context: List[Dict] = None, llm_object = None) -> 
 
     # Create the task
     task = Task(
-    description=f"""{context_str}
-    
-    Current Request: '{user_prompt}'
-    
-    IMPORTANT: Use the conversation context above to understand what the user means.
-    - If user references pronouns like "them" / "هؤلاء" / "هم", resolve it from context (e.g., last retrieved customers).
-    - If context is missing, assume clarification is needed (but do NOT hallucinate).
-    - If the request can't be in sub tasks just return the user prompt 
-
-    Additional Contact-Data Rule:
-    - Before sending any message (WhatsApp or Email), check whether the context already contains the needed data:
-    - For WhatsApp, confirm that phone numbers exist.
-    - For Email, confirm that email addresses exist.
-    - If not present in the context, add a new subtask before sending:
-    - “Retrieve clients’ phone numbers - DB Agent”
-    - or “Retrieve clients’ email addresses - DB Agent”
-
-
-    STRICT RULES - DO NOT ADD TASKS THE USER DIDN'T REQUEST:
-    1. If user says "prepare/جهز" or "draft/اكتب" = ONLY create content, NO sending
-    2. If user says "send/أرسل" = Include sending steps
-    3. If user says "create campaign/حملة" without "send" = ONLY prepare, NO sending
-    4. NEVER add helpful extras like "send" when not requested
-    5. If the request can't be in sub tasks just return the user prompt 
-
-    Critical Rules for References:
-    - If sending to "them" or specific people from context, FIRST retrieve their contact information
-    - If preparing content for general use (no specific recipients), NO need to get contacts
-
-    Break down the request into subtasks and output a simple numbered list like:
-    1. [Action] - [Which Agent should do it]
-    2. [Action] - [Which Agent should do it]
-
-    Consider these available agents:
-    - Marketing Agent → prepares campaigns, segments audiences, outreach via WhatsApp/Email
-    - Sales Agent → CRM tasks, personalized sales campaigns, WhatsApp/Email follow-ups
-    - DB Agent → Answer questions related to database operations (CRUD)
-
-    IMPORTANT NOTES:
-    - Always assign subtasks ONLY to these agents.
-    - Do not invent new agents or roles.
-    - Content will NEVER have placeholders like [name] or dummy data.""",
-    expected_output="A numbered list of subtasks with responsible agents based on the context and request",
-    agent=decomposer
+        description=f"""{context_str}
+        
+        Current Request: '{user_prompt}'
+        
+        🔍 CONTEXT ANALYSIS CHECKLIST:
+        
+        DATA CHECK:
+        □ Are phone numbers in context? (Look for +XXX format)
+        □ Are email addresses in context? (Look for @domain format)
+        □ Are customer names/IDs in context?
+        
+        CONTENT CHECK:
+        □ Is there a prepared/drafted message in recent context?
+        □ Did user previously ask to "prepare", "draft", "write" content?
+        □ Is there campaign text, offer details, or message content visible?
+        □ Is user referencing "it", "this message", "that content"?
+        
+        📋 SMART DECOMPOSITION PATTERNS:
+        
+        Pattern 1 - Everything exists:
+        User says "send it to them" + content exists + phones exist
+        → Task: "Send [existing content] to [phones from context] - Marketing Agent"
+        
+        Pattern 2 - Content exists, data missing:
+        User says "send this to all customers" + content exists + no phones
+        → Task 1: "Retrieve customer phone numbers - DB Agent"
+        → Task 2: "Send [existing content] to retrieved numbers - Marketing Agent"
+        
+        Pattern 3 - Data exists, content missing:
+        User says "send them a welcome message" + phones exist + no content
+        → Task 1: "Create welcome message content - Marketing Agent"
+        → Task 2: "Send to [phones from context] - Marketing Agent"
+        
+        Pattern 4 - Nothing exists:
+        User says "send discount SMS to customers" + no phones + no content
+        → Task 1: "Retrieve customer phone numbers - DB Agent"
+        → Task 2: "Create discount SMS content - Marketing Agent"
+        → Task 3: "Send to retrieved numbers - Marketing Agent"
+        
+        Pattern 5 - Just preparation:
+        User says "prepare a campaign message"
+        → Task: "Create campaign message content - Marketing Agent"
+        (NO sending, NO data retrieval)
+        
+        STRICT RULES:
+        1. NEVER recreate content that's visible in the last 3 messages
+        2. NEVER retrieve data that's already shown
+        3. When user says "it/this/that" → find what they're referring to
+        4. Be minimal - use what exists, create only what's missing
+        
+        Output format (only necessary tasks):
+        1. [Action] - [Agent]
+        2. [Action] - [Agent]
+        
+        Available agents:
+        - Marketing Agent → create content, send messages
+        - Sales Agent → personalized follow-ups
+        - DB Agent → retrieve data (ONLY if not in context)
+        
+        Remember: Check context first! Don't recreate what exists!""",
+        
+        expected_output="""Minimal task list based on what's already available.
+        - Content in context? → Skip content creation
+        - Data in context? → Skip data retrieval  
+        - Both exist? → Go straight to action
+        - Neither exists? → Add both tasks first""",
+        agent=decomposer
     )
-
 
     
     # Create and run the crew
