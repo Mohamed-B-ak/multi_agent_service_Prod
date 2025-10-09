@@ -2,6 +2,7 @@ from pymongo import MongoClient
 from crewai.tools import BaseTool
 from crewai import Agent, LLM
 from typing import Any, Optional
+import json
 import os
 import uuid
 from datetime import datetime
@@ -323,11 +324,11 @@ class MongoDBBulkDeleteTool(BaseTool):
 
 class MongoDBCountDocumentsTool(BaseTool):
     name: str = "MongoDB Count Documents Tool"
-    description: str = "Counts the number of documents in a specified collection, always scoped by user email."
+    description: str = "Counts the number of documents in a specified collection, scoped by user email."
     db: Any = None
-    user_email: str = None  # <-- add user email to the tool
+    user_email: str = None
 
-    def __init__(self, connection: MongoDBConnection, user_email: str, **kwargs):
+    def __init__(self, connection, user_email: str, **kwargs):
         super().__init__(**kwargs)
         self.db = connection.get_db()
         self.user_email = user_email
@@ -342,26 +343,36 @@ class MongoDBCountDocumentsTool(BaseTool):
             ]
         }
 
-        # No query provided → just return user scope
         if not query:
             return user_filter
 
-        # If query already contains a user email condition → ignore it, use $or instead
-        if any(k in query for k in ["userEmail"]):
-            return user_filter
-
-        # Otherwise, combine user filter with the provided query
+        # Combine both filters safely
         return {"$and": [query, user_filter]}
-    
+
     def _run(self, collection_name: str, filter_query: Optional[dict] = None) -> str:
-        collection = self.db[collection_name]
-        scoped_query = self._apply_user_scope(filter_query)
-        count = collection.count_documents(scoped_query)
-        return {
-        "status": "success",
-        "count": count,
-        "message": f"✅ Current number of clients: {count}"
-    }
+        try:
+            if not collection_name:
+                return json.dumps({
+                    "status": "error",
+                    "message": "Collection name must be provided."
+                })
+
+            collection = self.db[collection_name]
+            scoped_query = self._apply_user_scope(filter_query)
+            count = collection.count_documents(scoped_query)
+
+            result = {
+                "status": "success",
+                "count": count,
+                "message": f"✅ Current number of documents for {self.user_email}: {count}"
+            }
+            return json.dumps(result)
+
+        except Exception as e:
+            return json.dumps({
+                "status": "error",
+                "message": f"❌ Failed to count documents: {str(e)}"
+            })
 
     class Config:
         arbitrary_types_allowed = True
