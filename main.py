@@ -22,6 +22,7 @@ from agents.marketing_agent import marketing_agent
 from agents.customer_service_agent import customer_service_agent
 from fastapi.responses import JSONResponse
 from fastapi import Request, Response
+from pinecone import Pinecone
 from datetime import datetime
 import warnings
 import redis 
@@ -52,8 +53,11 @@ app.add_middleware(
 mongo_client = None
 db = None
 redis_client= None
+Pinocone_index = None
+openai_client = None
 
-
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+INDEX_NAME = os.getenv("PINECONE_INDEX", "rag-multiuser")
 
 def get_llm():
     """
@@ -215,7 +219,7 @@ def get_understand_and_execute_task(
             - "✅ تم إرسال عرض الخصم إلى محمد (+21653844063) "
             - "✅ تم الإرسال • 38/38 • أمثلة "
             """,
-                    expected_output=f"""
+            expected_output=f"""
             Return  the final user-facing result in {user_language} ({dialect} if applicable) or return the tool result like (whatsApp/email content).
 
             If there was a prior misunderstanding, start with a brief apology, then the corrected result.
@@ -234,7 +238,7 @@ def detect_language(text: str) -> str:
 
 @app.on_event("startup")
 async def startup_event():
-    global mongo_client, db, redis_client
+    global mongo_client, db, redis_client, Pinocone_index, openai_client
     mongo_client = MongoClient(os.getenv("MONGO_DB_URI"))
     db = mongo_client[os.getenv("DB_NAME")]
    
@@ -242,6 +246,12 @@ async def startup_event():
         os.getenv("REDIS_URL"),
         decode_responses=True
     )
+    pc = Pinecone(api_key=PINECONE_API_KEY)
+
+    # Connect to Pinecone index
+    Pinocone_index = pc.Index(INDEX_NAME)
+    from openai import OpenAI
+    openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
     print("success")
 
@@ -424,6 +434,10 @@ async def process_prompt(request: UserPromptRequest):
     user_email = "mohamed.ak@d10.sa"
     llm_obj, manager_llm = get_llm()
     
+    print(db)
+    print(redis_client)
+    print(Pinocone_index)
+    print(openai_client)
     from utils import save_message, get_messages
     save_message(redis_client, user_email, "user", user_prompt)
 
@@ -442,7 +456,7 @@ async def process_prompt(request: UserPromptRequest):
     redis_context_window = get_messages(redis_client, user_email, limit=10)
 
     from understandinglayer.understand_prompt import PromptUnderstandingLayer
-    understanding = PromptUnderstandingLayer(user_prompt, redis_context_window)
+    understanding = PromptUnderstandingLayer(user_prompt, redis_context_window, openai_client)
     understanding_res = understanding.understand()
     print("++++++++++++++++++++++++++++++++++++++++++++")
     print(understanding_res.to_dict())
@@ -482,10 +496,10 @@ async def process_prompt(request: UserPromptRequest):
     from utils import respond_to_user, check_required_data
     if understanding_res.response_type == "simple":
         return JSONResponse(content={
-            "final_output": respond_to_user(user_prompt, user_email, userlanguage, dialect, tone, urgency) + str(time.time() - start),
+            "final_output": respond_to_user(user_prompt, user_email, userlanguage, dialect, tone, urgency, Pinocone_index, openai_client) + str(time.time() - start),
         })
 
-    confirmation = check_required_data(meaning, redis_context_window)
+    confirmation = check_required_data(meaning, redis_context_window, openai_client)
     if isinstance(confirmation, dict):
         if confirmation["need_details"] == "yes":
             return JSONResponse(content={

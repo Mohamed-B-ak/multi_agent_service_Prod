@@ -60,11 +60,11 @@ class PromptUnderstandingLayer:
     Simple layer to understand user prompts with context
     """
     
-    def __init__(self, user_prompt, context,  api_key: str = None):
+    def __init__(self, user_prompt, context, client, api_key: str = None):
         """Initialize with OpenAI API key"""
         self.user_prompt= user_prompt
         self.context = context
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self.client = client
         
     def understand(
         self, 
