@@ -6,7 +6,7 @@ Planner method for task decomposition with combined Knowledge-Based Content Agen
 from crewai import Agent, Task, Crew
 from typing import List, Dict
 
-def planner(user_prompt: str, context: List[Dict] = None, llm_object = None) -> str:
+def planner(user_prompt: str, context: List[Dict] = None, llm_object = None, intent_dict = {}) -> str:
     """
     Decomposes a user request into subtasks considering conversation context.
     Now uses the combined Knowledge-Based Content Agent for all content creation.
@@ -85,17 +85,12 @@ def planner(user_prompt: str, context: List[Dict] = None, llm_object = None) -> 
         
         ANALYZE THE USER'S ACTUAL NEED:
         
-        1. INTENT DETECTION:
-        □ What does the user want as OUTPUT?
-            - A number/count → Use: "Count documents - DB Agent"
-            - View/see data → Use: "Read data - DB Agent"  
-            - Add new data → Use: "Create document - DB Agent"
-            - Modify existing → Use: "Update document - DB Agent"
-            - Remove data → Use: "Delete document - DB Agent"
-            - Message content → Use: "Create content - Marketing Agent"
-            - Send messages → Use: "Send via WhatsApp/Email - Marketing Agent"
-            - Generate file → Use: "Create file - File Agent"
+        1. INTENT :
+
+
+        {intent_dict}
         
+
         2. CONTEXT CHECK:
         □ Is the needed data already in the conversation?
         □ Is there prepared content that can be reused?
@@ -105,25 +100,25 @@ def planner(user_prompt: str, context: List[Dict] = None, llm_object = None) -> 
         Only include steps that are ABSOLUTELY NECESSARY.
         
         Examples of correct decomposition:
-        - "كم لدي من عميل" → "Count customers - DB Agent"
-        - "أضف عميل اسمه أحمد" → "Create customer record - DB Agent"
-        - "احذف العميل رقم 5" → "Delete customer by ID - DB Agent"
+        - "كم لدي من عميل" → "Count customers"
+        - "أضف عميل اسمه أحمد" → "Create customer record"
+        - "احذف العميل رقم 5" → "Delete customer by ID"
         - "أرسل رسالة للعملاء" → 
-            Step 1: "Get customer contacts - DB Agent"
-            Step 2: "Create message content - Marketing Agent"  
-            Step 3: "Send bulk WhatsApp - Marketing Agent"
-        - "جهز رسالة ترحيب" → "Create welcome message - Marketing Agent"
+            Step 1: "Get customer contacts"
+            Step 2: "Create message content"  
+            Step 3: "Send bulk WhatsApp "
+        - "جهز رسالة ترحيب" → "Create welcome message "
         - "أرسلها لهم" (if message exists in context) → 
-            Step 1: "Get customer contacts - DB Agent"
-            Step 2: "Send existing message - Marketing Agent"
+            Step 1: "Get customer contacts"
+            Step 2: "Send existing message"
         
         Output format:
         Return ONLY the necessary steps as:
-        1. [Specific action] - [Agent]
-        2. [Specific action] - [Agent]
+        1. [Specific action]
+        2. [Specific action]
         
         Or for single operations:
-        [Specific action] - [Agent]
+        [Specific action]
         
         Available Agents:
         - DB Agent: All database operations (CRUD, Count)

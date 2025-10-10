@@ -56,6 +56,8 @@ redis_client= None
 Pinocone_index = None
 openai_client = None
 
+agents_type = None
+
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 INDEX_NAME = os.getenv("PINECONE_INDEX", "rag-multiuser")
 
@@ -108,6 +110,13 @@ def get_workers(user_email, user_language, knowledge_base, selected_agents, cont
     """
     llm_obj, _ = get_llm()
     selected_worker = []
+    if agents_type == "Task":
+        return[
+            db_agent(llm_obj, user_email, user_language),
+            email_agent(llm_obj, user_email, user_language),
+            whatsapp_agent(llm_obj, user_email, user_language),
+            knowledge_based_content_agent(llm_obj, knowledge_base, user_language )
+        ]
     if isinstance(selected_agents, list) and len(selected_agents) > 0 : 
         if "marketing_agent" in selected_agents : 
             selected_worker.append(marketing_agent(llm_obj, user_email,  user_language))
@@ -122,6 +131,7 @@ def get_workers(user_email, user_language, knowledge_base, selected_agents, cont
             sales_agent(llm_obj, user_email, user_language),
             db_agent(llm_obj, user_email, user_language)
         ]
+    
     return selected_worker
 from crewai import Task
 
@@ -230,6 +240,112 @@ def get_understand_and_execute_task(
             """
                 )
 
+def get_understand_and_execute_task_for_task(
+    user_prompt,
+    user_email,
+    user_language,
+    dialect,
+    tone,
+    urgency,
+    selected_agents=None,
+    context_window="",
+):
+    """
+    🧠 FIXED INTELLIGENT TASK - With strict compliance to user intent
+    The system now performs ONLY what the user requests — no auto-actions.
+    """
+
+    return Task(
+        description=(
+            f"🧠 INTELLIGENT BUSINESS OPERATIONS SYSTEM - STRICT INTENT EXECUTION\n"
+            f"Perform ONLY the requested action. NEVER exceed user intent.\n\n"
+            
+            f"🚨 CRITICAL INTENT RECOGNITION (MANDATORY):\n\n"
+            
+            f"📊 DATABASE OPERATIONS (HIGHEST PRIORITY):\n"
+            f"🔍 If user says 'أضيف عميل جديد' or 'add new client':\n"
+            f"   → Route to: Intelligent Database Operations Specialist\n"
+            f"   → Action: ADD client to database (ONLY)\n"
+            f"   → Required: Name, Phone, Email, Company (optional)\n"
+            f"   → Response: Database confirmation in user language\n\n"
+            
+            f"🔍 If user says 'اعرض العملاء' or 'list clients':\n"
+            f"   → Action: QUERY database for clients\n\n"
+            
+            f"🔍 If user says 'كم عميل عندي' or 'count clients':\n"
+            f"   → Action: COUNT clients in database\n\n"
+            
+            f"📧 EMAIL OPERATIONS (Only if user explicitly requests sending email):\n"
+            f"🔍 If user says 'ارسل إيميل' or 'send email':\n"
+            f"   → Route to: Email workflow (Content → Enhancement → Send)\n"
+            f"🔍 If user says 'جهز إيميل' or 'prepare email':\n"
+            f"   → Prepare email draft ONLY (DO NOT SEND)\n\n"
+            
+            f"📱 WHATSAPP OPERATIONS:\n"
+            f"🔍 If user says 'ارسل واتساب' or 'send whatsapp':\n"
+            f"   → Route to: WhatsApp workflow (Send message)\n"
+            f"🔍 If user says 'جهز حملة واتساب' or 'prepare whatsapp campaign':\n"
+            f"   → Prepare campaign content and structure ONLY (DO NOT SEND)\n\n"
+            
+            f"❓ HELP/QUESTIONS:\n"
+            f"🔍 If user asks about the platform:\n"
+            f"   → Route to: Siyadah Helper Agent\n\n"
+            
+            f"⚠️ MANDATORY RULES:\n"
+            f"- Perform ONLY what is explicitly requested\n"
+            f"- No automatic sending, posting, or triggering workflows\n"
+            f"- Database ops = Database Agent ONLY\n"
+            f"- Email ops = Email workflow ONLY\n"
+            f"- WhatsApp ops = WhatsApp workflow ONLY\n"
+            f"- DO NOT mix database ops with messaging\n"
+            f"- Always respond in user language: {user_language}\n"
+            f"- User email for scoping: {user_email}\n"
+            f"- Tone: {tone}\n"
+            f"- Dialect: {dialect}\n"
+            f"- Urgency: {urgency}\n\n"
+            
+            f"🔍 INPUT ANALYSIS:\n"
+            f"the user request can be a simple request or a list of tasks : \n\n"
+            f"---------\n"
+            f"{user_prompt}\n"
+            f"---------\n\n"
+            f"User Language: {user_language}\n"
+            f"Business Context: {context_window}\n"
+            f"Selected Agents: {selected_agents}\n"
+            f"User Email: {user_email}\n\n"
+            
+            f"🎯 EXPECTED BEHAVIOR EXAMPLES:\n"
+            f"- If user says 'جهز حملة واتساب' → Prepare ONLY, no sending.\n"
+            f"- If user says 'ارسل حملة واتساب' → Execute sending workflow.\n"
+            f"- If user says 'أضيف عميل جديد' → Add to DB only.\n"
+            f"- If user says 'اعرض العملاء' → Return client list.\n"
+        ),
+        expected_output=(
+            f"🎯 CORRECT BEHAVIOR EXAMPLES:\n\n"
+            
+            f"✅ 'جهز حملة واتساب':\n"
+            f"→ 'تم تجهيز حملة واتساب بنجاح، يمكنك مراجعتها قبل الإرسال.'\n\n"
+            
+            f"✅ 'ارسل حملة واتساب':\n"
+            f"→ 'تم إرسال حملة واتساب بنجاح.'\n\n"
+            
+            f"✅ 'أضيف عميل جديد':\n"
+            f"→ 'تمت إضافة العميل إلى قاعدة البيانات.'\n\n"
+            
+            f"❌ WRONG BEHAVIOR:\n"
+            f"→ Sending WhatsApp when user only said 'جهز'\n"
+            f"→ Sending emails automatically\n"
+            f"→ Mixing operations (e.g., adding client + sending message)\n\n"
+            
+            f"🎯 SUCCESS CRITERIA:\n"
+            f"- Strict compliance with user intent\n"
+            f"- No automated actions unless explicitly requested\n"
+            f"- Clear, accurate responses in {user_language}\n"
+            f"- Proper routing and operation handling"
+        ),
+    )
+
+
 def detect_language(text: str) -> str:
     langid.set_languages(['fr', 'en', 'ar'])
     lang, _ = langid.classify(text)
@@ -238,7 +354,7 @@ def detect_language(text: str) -> str:
 
 @app.on_event("startup")
 async def startup_event():
-    global mongo_client, db, redis_client, Pinocone_index, openai_client
+    global mongo_client, db, redis_client, Pinocone_index, openai_client, agents_type
     mongo_client = MongoClient(os.getenv("MONGO_DB_URI"))
     db = mongo_client[os.getenv("DB_NAME")]
    
@@ -252,6 +368,8 @@ async def startup_event():
     Pinocone_index = pc.Index(INDEX_NAME)
     from openai import OpenAI
     openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+    agents_type = "Task"
 
     print("success")
 
@@ -499,12 +617,6 @@ async def process_prompt(request: UserPromptRequest):
             "final_output": respond_to_user(user_prompt, user_email, userlanguage, dialect, tone, urgency, Pinocone_index, openai_client) + str(time.time() - start),
         })
 
-    confirmation = check_required_data(meaning, redis_context_window, openai_client)
-    if isinstance(confirmation, dict):
-        if confirmation["need_details"] == "yes":
-            return JSONResponse(content={
-                "final_output": confirmation['message'] + str(time.time() - start),
-            })  
 
     print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     print(redis_context_window)
@@ -521,7 +633,7 @@ async def process_prompt(request: UserPromptRequest):
     print("clear_promptclear_prompt")
     
     try:
-        tasks = planner(clear_prompt, str(redis_context_window), llm_obj)
+        tasks = planner(clear_prompt, str(redis_context_window), llm_obj, understanding_res.to_dict())
         print("----------------------planner----------------------")
         print(tasks)
         print("----------------------planner----------------------")
@@ -547,7 +659,10 @@ async def process_prompt(request: UserPromptRequest):
     print("-----------------------")
     
     workers = get_workers(user_email, userlanguage, knowledge_base, selected_agents, str(redis_context_window))
-    understand_and_execute = get_understand_and_execute_task(tasks, user_email, userlanguage, dialect, tone, urgency, selected_agents, str(redis_context_window))
+    if agents_type == "Task":
+        understand_and_execute = get_understand_and_execute_task_for_task(tasks, user_email, userlanguage, dialect, tone, urgency, selected_agents, str(redis_context_window))
+    else : 
+        understand_and_execute = get_understand_and_execute_task(tasks, user_email, userlanguage, dialect, tone, urgency, selected_agents, str(redis_context_window))
 
     crew = Crew(
         agents=workers,
